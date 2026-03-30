@@ -1,0 +1,282 @@
+@import "tailwindcss";
+
+:root {
+  --background: #020617;
+  --foreground: #f8fafc;
+  --surface: #030712;
+  --accent: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.45);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Premium glass surfaces (feed, wallet, forms) */
+.glass-panel {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.02) 50%,
+    rgba(9, 9, 11, 0.4) 100%
+  );
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+    0 24px 64px -32px rgba(0, 0, 0, 0.85),
+    0 0 48px -24px rgba(46, 91, 255, 0.12);
+}
+
+/* Gate: drifting cobalt grid */
+@keyframes gate-grid-drift {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 48px 48px;
+  }
+}
+
+.gate-grid {
+  background-image:
+    linear-gradient(rgba(46, 91, 255, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(46, 91, 255, 0.14) 1px, transparent 1px);
+  background-size: 48px 48px;
+  animation: gate-grid-drift 22s linear infinite;
+}
+
+@keyframes radial-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
+.gate-radial-glow {
+  animation: radial-glow-pulse 8s ease-in-out infinite;
+}
+
+/* Primary CTA: sweeping shine */
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(-120%) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-12deg);
+  }
+}
+
+.btn-shimmer {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.btn-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgba(255, 255, 255, 0.22) 48%,
+    rgba(255, 255, 255, 0.38) 50%,
+    rgba(255, 255, 255, 0.22) 52%,
+    transparent 65%
+  );
+  animation: shimmer-sweep 2.8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.btn-shimmer > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* Auth loading: bar shimmer */
+@keyframes auth-bar-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.auth-loading-bar {
+  position: relative;
+  overflow: hidden;
+  height: 2px;
+  border-radius: 9999px;
+  background: rgba(46, 91, 255, 0.2);
+}
+
+.auth-loading-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, #2e5bff, transparent);
+  animation: auth-bar-shimmer 1.2s ease-in-out infinite;
+}
+
+/* Empty state: radar sweep */
+@keyframes radar-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.radar-sweep {
+  transform-origin: center;
+  animation: radar-rotate 4s linear infinite;
+}
+
+@keyframes pulse-ring {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.02);
+  }
+}
+
+.search-ring-pulse {
+  animation: pulse-ring 2.2s ease-in-out infinite;
+}
+
+@keyframes shimmer-text {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.shimmer-text {
+  background-size: 200% 100%;
+  animation: shimmer-text 2s linear infinite;
+}
+
+@keyframes error-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-8px);
+  }
+  30% {
+    transform: translateX(8px);
+  }
+  45% {
+    transform: translateX(-5px);
+  }
+  60% {
+    transform: translateX(5px);
+  }
+}
+
+.animate-error-shake {
+  animation: error-shake 0.42s ease-out;
+}
+
+@keyframes task-border-glow {
+  0%,
+  100% {
+    border-color: rgba(46, 91, 255, 0.28);
+    box-shadow: 0 0 20px -6px rgba(46, 91, 255, 0.15);
+  }
+  50% {
+    border-color: rgba(46, 91, 255, 0.65);
+    box-shadow: 0 0 28px -4px rgba(46, 91, 255, 0.35);
+  }
+}
+
+.task-card-active-pulse {
+  animation: task-border-glow 2.8s ease-in-out infinite;
+}
+
+/* Countdown under 3h: electric red gradient + glow */
+@keyframes countdown-urgent-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.45)) drop-shadow(0 0 22px rgba(239, 68, 68, 0.2));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px rgba(248, 113, 113, 0.65)) drop-shadow(0 0 32px rgba(239, 68, 68, 0.35));
+  }
+}
+
+.countdown-urgent {
+  background: linear-gradient(92deg, #fca5a5, #ef4444, #f97316, #fb7185);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: countdown-urgent-pulse 1.8s ease-in-out infinite, shimmer-text 2.5s linear infinite;
+}
+
+@keyframes feed-shimmer-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.feed-shimmer-layer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.12),
+    rgba(165, 180, 252, 0.08),
+    transparent
+  );
+  animation: feed-shimmer-sweep 1.45s ease-in-out infinite;
+}
+
+.countdown-urgent-shell {
+  animation: urgent-shell-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes urgent-shell-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px rgba(239, 68, 68, 0.15),
+      0 0 32px -8px rgba(239, 68, 68, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(248, 113, 113, 0.35),
+      0 0 48px -4px rgba(239, 68, 68, 0.28);
+  }
+}
