@@ -8,9 +8,32 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+const metadataBase = process.env.NEXT_PUBLIC_SITE_URL
+  ? new URL(process.env.NEXT_PUBLIC_SITE_URL)
+  : undefined;
+
 export const metadata: Metadata = {
-  title: "Optimal Content",
-  description: "A Rapid marketplace for unbundled, high-intensity content strategy.",
+  ...(metadataBase ? { metadataBase } : {}),
+  title: {
+    default: "Optimal Content — The Optimizer Platform",
+    template: "%s · Optimal Content",
+  },
+  description:
+    "Hire expert video optimizers on a funded marketplace: post jobs, collaborate on briefs, and release payouts when work is approved.",
+  applicationName: "Optimal Content",
+  openGraph: {
+    title: "Optimal Content — The Optimizer Platform",
+    description:
+      "Funded marketplace connecting creators and optimizers for YouTube and short-form content strategy.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Optimal Content — The Optimizer Platform",
+    description:
+      "Funded marketplace connecting creators and optimizers for YouTube and short-form content strategy.",
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({

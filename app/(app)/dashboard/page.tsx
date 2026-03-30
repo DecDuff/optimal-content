@@ -7,6 +7,7 @@ import { Briefcase, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { DashboardPostOpener } from "@/components/dashboard-post-opener";
+import { DashboardPanelsSkeleton, TaskListSkeleton } from "@/components/app-route-skeleton";
 import { OptimizerWalletCard } from "@/components/optimizer-wallet-card";
 import { usePostJobModal } from "@/contexts/post-job-modal-context";
 import { useSessionProfile } from "@/hooks/use-session-profile";
@@ -136,19 +137,16 @@ function DashboardContent() {
           Dashboard
         </h1>
         <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-400">
-          {profile?.role === "creator"
-            ? "Create funded jobs, track delivery, and release payouts when work is submitted."
-            : "Monitor your wallet, browse the job feed, and ship on the 24h clock."}
+          {profileLoading
+            ? "Loading your workspace…"
+            : profile?.role === "creator"
+              ? "Create funded jobs, track delivery, and release payouts when work is submitted."
+              : "Monitor your wallet, browse the job feed, and ship on the 24h clock."}
         </p>
       </motion.div>
 
       {profileLoading ? (
-        <div className="mt-12 flex justify-center">
-          <div className="relative h-10 w-10">
-            <div className="absolute inset-0 rounded-full border border-white/10 bg-slate-900/50" />
-            <div className="absolute inset-0 animate-pulse rounded-full border-2 border-violet-500/30 border-t-violet-400" />
-          </div>
-        </div>
+        <DashboardPanelsSkeleton />
       ) : profile?.role === "optimizer" ? (
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -195,18 +193,28 @@ function DashboardContent() {
       ) : null}
 
       <section className="mt-14">
-        <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-          {profile?.role === "creator" ? "Your jobs" : "Your assignments"}
-        </h2>
-        {loadingTasks ? (
-          <p className="mt-4 text-sm text-slate-500">Loading…</p>
-        ) : tasks.length === 0 ? (
-          <p className="glass-panel mt-4 border-dashed border-white/10 p-10 text-center text-sm text-slate-500">
-            {profile?.role === "creator"
-              ? "No jobs yet. Post one to hire an optimizer."
-              : "No assignments. Open the job feed to claim."}
-          </p>
+        {profileLoading ? (
+          <>
+            <div className="h-3 w-36 animate-pulse rounded bg-white/10" />
+            <TaskListSkeleton count={5} />
+          </>
         ) : (
+          <>
+            <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              {profile?.role === "creator" ? "Your jobs" : "Your assignments"}
+            </h2>
+            {loadingTasks ? (
+              <TaskListSkeleton count={5} />
+            ) : tasks.length === 0 ? (
+              <p className="glass-panel mt-4 border-dashed border-white/10 p-10 text-center text-sm text-slate-500">
+                {profile?.role === "creator"
+                  ? "No jobs yet. Post one to hire an optimizer."
+                  : "No assignments. Open the job feed to claim."}
+              </p>
+            ) : null}
+          </>
+        )}
+        {!profileLoading && !loadingTasks && tasks.length > 0 ? (
           <motion.ul
             className="mt-6 space-y-3"
             initial="hidden"
@@ -305,7 +313,7 @@ function DashboardContent() {
               );
             })}
           </motion.ul>
-        )}
+        ) : null}
       </section>
     </div>
   );

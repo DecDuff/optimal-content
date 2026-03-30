@@ -55,7 +55,16 @@ export default function LeaderboardPage() {
       </p>
 
       {loading ? (
-        <p className="mt-8 text-sm text-zinc-500">Loading…</p>
+        <div
+          className="mt-4 animate-pulse overflow-hidden rounded-lg border border-zinc-800/50"
+          aria-busy="true"
+          aria-label="Loading leaderboard"
+        >
+          <div className="h-9 bg-white/5" />
+          {Array.from({ length: 8 }, (_, i) => (
+            <div key={i} className="h-11 border-t border-white/[0.04] bg-white/[0.02]" />
+          ))}
+        </div>
       ) : (
         <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-800/50">
           <table className="w-full min-w-[480px] border-collapse text-left text-xs">

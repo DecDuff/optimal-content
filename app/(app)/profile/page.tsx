@@ -7,6 +7,7 @@ import { useProfilePrefs } from "@/app/context/profile-prefs-context";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ClaimCountdown } from "@/components/claim-countdown";
 import { TagCapsulePicker } from "@/components/tag-capsule-picker";
+import { AppRouteSkeleton } from "@/components/app-route-skeleton";
 import { optimizerPayoutCents } from "@/lib/optimizer-payout";
 import type { ProfileRow, TaskRow } from "@/types/database";
 
@@ -32,20 +33,29 @@ export default function ProfilePage() {
   const { displayName, setDisplayName, bio, bioMax, setBio, tags, toggleTag } = useProfilePrefs();
   const [me, setMe] = useState<MeResponse | null>(null);
   const [optimizerTasks, setOptimizerTasks] = useState<TaskRow[]>([]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/me");
-      const data = (await res.json()) as MeResponse & { error?: string };
-      if (res.ok) setMe(data);
+      try {
+        const res = await fetch("/api/me");
+        const data = (await res.json()) as MeResponse & { error?: string };
+        if (res.ok) setMe(data);
 
-      const tRes = await fetch("/api/tasks?scope=optimizer");
-      const tData = await tRes.json();
-      if (tRes.ok) setOptimizerTasks(tData.tasks ?? []);
+        const tRes = await fetch("/api/tasks?scope=optimizer");
+        const tData = await tRes.json();
+        if (tRes.ok) setOptimizerTasks(tData.tasks ?? []);
+      } finally {
+        setReady(true);
+      }
     })();
   }, []);
 
   const profile = me?.profile;
+
+  if (!ready) {
+    return <AppRouteSkeleton />;
+  }
 
   return (
     <div className="min-h-screen px-6 py-8">

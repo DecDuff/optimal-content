@@ -10,6 +10,7 @@ import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ClaimCountdown } from "@/components/claim-countdown";
 import { RetentionChecklist } from "@/components/retention-checklist";
 import { TaskMessagesChat } from "@/components/task-messages-chat";
+import { TaskWorkspaceSkeleton } from "@/components/task-workspace-skeleton";
 import { useMinLg } from "@/hooks/use-min-lg";
 import { useSessionProfile } from "@/hooks/use-session-profile";
 import { useUnreadTaskMessages } from "@/hooks/use-unread-task-messages";
@@ -350,11 +351,7 @@ export default function TaskWorkspacePage() {
   }
 
   if (profileLoading || (!task && !loadError)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center px-6">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#2e5bff]/25 border-t-[#2e5bff]" />
-      </div>
-    );
+    return <TaskWorkspaceSkeleton />;
   }
 
   if (loadError || !task) {

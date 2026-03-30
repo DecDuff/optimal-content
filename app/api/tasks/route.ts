@@ -35,9 +35,6 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    if (process.env.NODE_ENV === "development") {
-      console.info("[api/tasks mine]", { count: data?.length ?? 0, userId: user.id });
-    }
     return NextResponse.json({ tasks: (data ?? []) as TaskRow[] });
   }
 
