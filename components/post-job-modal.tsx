@@ -12,8 +12,9 @@ const TITLE_MAX = 200;
 const FEE_PCT = Number(process.env.NEXT_PUBLIC_PLATFORM_FEE_PERCENT ?? 20);
 const OPTIMIZER_PCT = 100 - FEE_PCT;
 
-const TAG_OPTIONS = ["Thumbnail", "SEO", "Hook", "Editing"] as const;
-type TagOption = (typeof TAG_OPTIONS)[number];
+const PRESET_TAGS = ["Thumbnail", "SEO", "Hook", "Editing"] as const;
+type PresetTag = (typeof PRESET_TAGS)[number];
+const CUSTOM_TAG_MAX = 40;
 
 const COMPLEXITY_OPTIONS = ["beginner", "intermediate", "expert"] as const;
 type ComplexityOption = (typeof COMPLEXITY_OPTIONS)[number];
@@ -32,7 +33,9 @@ export function PostJobModal({ open, onClose }: Props) {
   const [description, setDescription] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [budgetDollars, setBudgetDollars] = useState("50");
-  const [tags, setTags] = useState<TagOption[]>([]);
+  const [presetTags, setPresetTags] = useState<PresetTag[]>([]);
+  const [otherSelected, setOtherSelected] = useState(false);
+  const [otherCustomTag, setOtherCustomTag] = useState("");
   const [complexityLevel, setComplexityLevel] = useState<ComplexityOption>("beginner");
   const [targetPlatform, setTargetPlatform] = useState<TargetPlatformOption>("youtube_longform");
   const [loading, setLoading] = useState(false);
@@ -53,14 +56,25 @@ export function PostJobModal({ open, onClose }: Props) {
     setDescription("");
     setVideoUrl("");
     setBudgetDollars("50");
-    setTags([]);
+    setPresetTags([]);
+    setOtherSelected(false);
+    setOtherCustomTag("");
     setComplexityLevel("beginner");
     setTargetPlatform("youtube_longform");
   }, []);
 
-  const toggleTag = useCallback((tag: TagOption) => {
-    setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  const togglePresetTag = useCallback((tag: PresetTag) => {
+    setPresetTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }, []);
+
+  const buildTagsForSubmit = useCallback((): string[] => {
+    const out: string[] = [...presetTags];
+    if (otherSelected) {
+      const c = otherCustomTag.trim();
+      if (c) out.push(c);
+    }
+    return out;
+  }, [presetTags, otherSelected, otherCustomTag]);
 
   const handleClose = useCallback(() => {
     if (!loading) {
@@ -93,8 +107,13 @@ export function PostJobModal({ open, onClose }: Props) {
       return;
     }
 
-    if (tags.length === 0) {
-      toast.error("Select at least one tag.");
+    const tagsForApi = buildTagsForSubmit();
+    if (tagsForApi.length === 0) {
+      if (otherSelected) {
+        toast.error('Choose "Other" and type a custom tag, or pick at least one preset tag.');
+      } else {
+        toast.error("Select at least one tag.");
+      }
       return;
     }
 
@@ -114,7 +133,7 @@ export function PostJobModal({ open, onClose }: Props) {
           description: d,
           video_url: v,
           budget,
-          tags,
+          tags: tagsForApi,
           complexity_level: complexityLevel,
           target_platform: targetPlatform,
         }),
@@ -268,16 +287,18 @@ export function PostJobModal({ open, onClose }: Props) {
               <div>
                 <div className="flex items-center justify-between gap-3">
                   <label className="text-xs font-medium text-slate-400">Tags</label>
-                  <span className="text-[10px] text-slate-500">{tags.length} selected</span>
+                  <span className="text-[10px] text-slate-500">
+                    {buildTagsForSubmit().length} in request
+                  </span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {TAG_OPTIONS.map((tag) => {
-                    const active = tags.includes(tag);
+                  {PRESET_TAGS.map((tag) => {
+                    const active = presetTags.includes(tag);
                     return (
                       <button
                         key={tag}
                         type="button"
-                        onClick={() => toggleTag(tag)}
+                        onClick={() => togglePresetTag(tag)}
                         aria-pressed={active}
                         className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
                           active
@@ -289,7 +310,41 @@ export function PostJobModal({ open, onClose }: Props) {
                       </button>
                     );
                   })}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtherSelected((v) => {
+                        if (v) setOtherCustomTag("");
+                        return !v;
+                      });
+                    }}
+                    aria-pressed={otherSelected}
+                    className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
+                      otherSelected
+                        ? "border-amber-500/55 bg-amber-500/15 text-amber-100"
+                        : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/15"
+                    }`}
+                  >
+                    Other
+                  </button>
                 </div>
+                {otherSelected ? (
+                  <div className="mt-3">
+                    <label className="text-[11px] font-medium text-slate-500">Custom tag</label>
+                    <input
+                      type="text"
+                      value={otherCustomTag}
+                      onChange={(e) => setOtherCustomTag(e.target.value.slice(0, CUSTOM_TAG_MAX))}
+                      maxLength={CUSTOM_TAG_MAX}
+                      placeholder="e.g. Color grading, B-roll, Live stream"
+                      className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2 text-sm text-slate-200 outline-none backdrop-blur-md focus:border-amber-500/40"
+                    />
+                    <p className="mt-1 text-[10px] text-slate-600">
+                      {otherCustomTag.length}/{CUSTOM_TAG_MAX} — saved with your other tags (not the word
+                      &quot;Other&quot;).
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               <div>

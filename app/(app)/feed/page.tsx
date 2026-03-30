@@ -3,6 +3,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchOpenFeedTasks } from "@/lib/feed-data";
 import FeedClient from "@/components/feed-client";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function FeedPage() {
   const supabase = await createSupabaseServerClient();
   const {

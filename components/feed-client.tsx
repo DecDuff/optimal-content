@@ -117,9 +117,8 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
           Job feed
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          Funded, open roles from other creators. Filter by platform, complexity, or tag. Click a tag on a card
-          to narrow the list. Use <span className="text-slate-300">Newest</span> or{" "}
-          <span className="text-slate-300">Highest budget</span> to sort.
+          Open roles from other creators (your own posts are hidden here). New jobs show as soon as they&apos;re
+          created; claim stays locked until checkout funds the task. Filter by platform, complexity, or tag.
         </p>
       </motion.div>
 
@@ -230,7 +229,7 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
           className="glass-panel mt-10 border-dashed border-white/10 p-10 text-center text-sm leading-relaxed text-slate-500"
         >
           {tasks.length === 0
-            ? "No funded open jobs from other creators. Post from a creator account, complete Stripe checkout (or use Dev simulate payment), then view this feed from a separate optimizer account."
+            ? "No open jobs from other creators yet. Use a different optimizer account than the creator (this feed hides your own tasks), or ask someone else to post a brief."
             : query.trim() || hasExtraFilters
               ? "No jobs match your search or filters. Try clearing filters or different keywords."
               : "No jobs match your search. Try different keywords."}
@@ -250,6 +249,7 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
             const cx = complexityBadgeClass(t.complexity_level);
             const tags = safeTaskTags(t.tags);
             const showMetaRow = Boolean(plat || cx || tags.length > 0);
+            const funded = Boolean(t.stripe_charge_id);
 
             return (
               <motion.li
@@ -310,13 +310,19 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
                   <span className="font-mono text-xl font-semibold tabular-nums text-transparent bg-gradient-to-r from-cyan-300 to-emerald-300 bg-clip-text drop-shadow-[0_0_24px_rgba(52,211,153,0.25)]">
                     {fmtMoney(t.budget)}
                   </span>
+                  {!funded ? (
+                    <span className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-1.5 text-center text-[10px] font-medium text-amber-200/90 backdrop-blur-md">
+                      Awaiting creator payment
+                    </span>
+                  ) : null}
                   <motion.button
                     type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    disabled={claiming === t.id}
+                    whileHover={{ scale: funded && claiming !== t.id ? 1.02 : 1 }}
+                    whileTap={{ scale: funded && claiming !== t.id ? 0.98 : 1 }}
+                    disabled={claiming === t.id || !funded}
+                    title={!funded ? "This job will be claimable after Stripe checkout completes." : undefined}
                     onClick={() => claim(t.id)}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-indigo-500/50 bg-gradient-to-r from-indigo-600/90 to-violet-600/90 px-5 py-2.5 text-xs font-semibold text-white shadow-[0_0_32px_-8px_rgba(99,102,241,0.5)] backdrop-blur-sm disabled:opacity-60"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-indigo-500/50 bg-gradient-to-r from-indigo-600/90 to-violet-600/90 px-5 py-2.5 text-xs font-semibold text-white shadow-[0_0_32px_-8px_rgba(99,102,241,0.5)] backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-45"
                   >
                     {claiming === t.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />

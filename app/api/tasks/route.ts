@@ -7,8 +7,9 @@ import type { TaskRow } from "@/types/database";
 const TITLE_MAX = 200;
 const DESC_MAX = 8_000;
 
-const TAG_OPTIONS = ["Thumbnail", "SEO", "Hook", "Editing"] as const;
-type TagOption = (typeof TAG_OPTIONS)[number];
+const PRESET_TASK_TAGS = ["Thumbnail", "SEO", "Hook", "Editing"] as const;
+type PresetTaskTag = (typeof PRESET_TASK_TAGS)[number];
+const TAG_MAX_LEN = 40;
 const COMPLEXITY_OPTIONS = ["beginner", "intermediate", "expert"] as const;
 type ComplexityOption = (typeof COMPLEXITY_OPTIONS)[number];
 const TARGET_PLATFORM_OPTIONS = ["youtube_longform", "youtube_shorts", "tiktok", "instagram_reels"] as const;
@@ -73,10 +74,36 @@ type CreateBody = {
   video_url: string;
   /** USD cents (integer). Maps to DB column `budget`. */
   budget: number;
-  tags: TagOption[];
+  /** Preset labels and/or one custom tag from the "Other" field (never the literal "Other"). */
+  tags: string[];
   complexity_level: ComplexityOption;
   target_platform: TargetPlatformOption;
 };
+
+function normalizeTaskTag(raw: string): string | null {
+  const t = typeof raw === "string" ? raw.trim() : "";
+  if (!t || t.length > TAG_MAX_LEN) return null;
+  if ((PRESET_TASK_TAGS as readonly string[]).includes(t)) return t;
+  // Custom tag: reasonable characters only (no "Other" stored as sole gimmick — client omits that label)
+  if (t.toLowerCase() === "other") return null;
+  if (/^[a-zA-Z0-9][a-zA-Z0-9\s\-&.]{0,39}$/.test(t)) return t;
+  return null;
+}
+
+function sanitizeTaskTags(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const x of input) {
+    const n = normalizeTaskTag(String(x));
+    if (!n) continue;
+    const key = n.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(n);
+  }
+  return out;
+}
 
 export async function POST(request: Request) {
   try {
@@ -127,12 +154,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate new metadata fields.
-    const safeTags = Array.isArray(tags)
-      ? tags.filter((x) => typeof x === "string" && (TAG_OPTIONS as readonly string[]).includes(x))
-      : [];
+    const safeTags = sanitizeTaskTags(tags);
     if (safeTags.length === 0) {
-      return NextResponse.json({ success: false, error: "Select at least one valid tag." }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "Add at least one tag (preset or a valid custom tag)." },
+        { status: 400 }
+      );
     }
     if (!COMPLEXITY_OPTIONS.includes(complexity_level)) {
       return NextResponse.json(
@@ -158,7 +185,7 @@ export async function POST(request: Request) {
         tags: safeTags,
         complexity_level,
         target_platform,
-        status: "open",
+        status: "open" as const,
       })
       .select("*")
       .single();
