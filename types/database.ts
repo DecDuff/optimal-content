@@ -1,7 +1,7 @@
 export type UserRole = "creator" | "optimizer";
 
 /** Must match DB check constraint on `tasks.status`. */
-export type TaskStatus = "open" | "claimed" | "submitted" | "approved" | "disputed";
+export type TaskStatus = "open" | "claimed" | "submitted" | "approved" | "disputed" | "awaiting_checkout";
 
 export type ChecklistState = Record<"1" | "2" | "3" | "4" | "5", boolean>;
 

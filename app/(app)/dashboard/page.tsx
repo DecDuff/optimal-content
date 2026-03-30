@@ -12,6 +12,8 @@ import { usePostJobModal } from "@/contexts/post-job-modal-context";
 import { useSessionProfile } from "@/hooks/use-session-profile";
 import type { TaskRow, TaskStatus } from "@/types/database";
 
+export const dynamic = 'force-dynamic';
+
 function fmtMoney(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
@@ -51,7 +53,8 @@ function DashboardContent() {
     let cancelled = false;
     (async () => {
       const scope = profile.role === "creator" ? "mine" : "optimizer";
-      const res = await fetch(`/api/tasks?scope=${scope}`);
+      // 👇 ADDED CACHE: 'NO-STORE' HERE
+      const res = await fetch(`/api/tasks?scope=${scope}`, { cache: 'no-store' });
       const data = await res.json();
       if (!cancelled && res.ok) setTasks(data.tasks ?? []);
       if (!cancelled) setLoadingTasks(false);
@@ -209,7 +212,8 @@ function DashboardContent() {
             }}
           >
             {tasks.map((t) => {
-              const awaitingPay = t.status === "open" && !t.stripe_charge_id;
+              // 👇 UPDATED THIS LINE HERE
+              const awaitingPay = t.status === "awaiting_checkout";
               return (
                 <motion.li
                   key={t.id}
