@@ -7,6 +7,13 @@ import type { TaskRow } from "@/types/database";
 const TITLE_MAX = 200;
 const DESC_MAX = 8_000;
 
+const TAG_OPTIONS = ["Thumbnail", "SEO", "Hook", "Editing"] as const;
+type TagOption = (typeof TAG_OPTIONS)[number];
+const COMPLEXITY_OPTIONS = ["beginner", "intermediate", "expert"] as const;
+type ComplexityOption = (typeof COMPLEXITY_OPTIONS)[number];
+const TARGET_PLATFORM_OPTIONS = ["youtube_longform", "youtube_shorts", "tiktok", "instagram_reels"] as const;
+type TargetPlatformOption = (typeof TARGET_PLATFORM_OPTIONS)[number];
+
 export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -66,6 +73,9 @@ type CreateBody = {
   video_url: string;
   /** USD cents (integer). Maps to DB column `budget`. */
   budget: number;
+  tags: TagOption[];
+  complexity_level: ComplexityOption;
+  target_platform: TargetPlatformOption;
 };
 
 export async function POST(request: Request) {
@@ -96,7 +106,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
     }
 
-    const { title, description, video_url, budget } = body;
+    const { title, description, video_url, budget, tags, complexity_level, target_platform } = body;
     const t = title?.trim() ?? "";
     const d = description?.trim() ?? "";
     const v = video_url?.trim() ?? "";
@@ -117,6 +127,26 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validate new metadata fields.
+    const safeTags = Array.isArray(tags)
+      ? tags.filter((x) => typeof x === "string" && (TAG_OPTIONS as readonly string[]).includes(x))
+      : [];
+    if (safeTags.length === 0) {
+      return NextResponse.json({ success: false, error: "Select at least one valid tag." }, { status: 400 });
+    }
+    if (!COMPLEXITY_OPTIONS.includes(complexity_level)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid complexity_level." },
+        { status: 400 }
+      );
+    }
+    if (!TARGET_PLATFORM_OPTIONS.includes(target_platform)) {
+      return NextResponse.json(
+        { success: false, error: "Invalid target_platform." },
+        { status: 400 }
+      );
+    }
+
     const { data: task, error } = await admin
       .from("tasks")
       .insert({
@@ -125,6 +155,9 @@ export async function POST(request: Request) {
         description: d,
         video_url: v,
         budget,
+        tags: safeTags,
+        complexity_level,
+        target_platform,
         status: "open",
       })
       .select("*")

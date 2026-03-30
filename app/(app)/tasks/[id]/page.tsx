@@ -135,6 +135,10 @@ export default function TaskWorkspacePage() {
   }
 
   async function submitWork() {
+    if (!allChecklistDone) {
+      toast.error("Complete all 5 checklist items before submitting");
+      return;
+    }
     const url = deliverableUrl.trim();
     if (!isValidHttpsUrl(url)) {
       toast.error("Paste a valid http(s) URL to your deliverable (report, doc, or asset).");
@@ -142,6 +146,22 @@ export default function TaskWorkspacePage() {
     }
     setBusy("submit");
     try {
+      // Flush checklist immediately so the submit endpoint sees the latest state.
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      const flushRes = await fetch(`/api/tasks/${id}/checklist`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checklist }),
+      });
+      const flushData = await flushRes.json();
+      if (!flushRes.ok) {
+        toast.error(flushData.error ?? "Could not save checklist");
+        return;
+      }
+
       const res = await fetch(`/api/tasks/${id}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -372,9 +392,7 @@ export default function TaskWorkspacePage() {
                 type="button"
                 whileHover={{ scale: busy ? 1 : 1.02 }}
                 whileTap={{ scale: busy ? 1 : 0.98 }}
-                disabled={
-                  busy !== null || checkedCount < CHECKLIST_KEYS.length || !deliverableUrl.trim()
-                }
+                disabled={busy !== null || !allChecklistDone}
                 onClick={submitWork}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-600/90 to-cyan-600/80 py-3 text-sm font-semibold text-white shadow-[0_0_28px_-8px_rgba(52,211,153,0.35)] disabled:cursor-not-allowed disabled:opacity-35"
               >

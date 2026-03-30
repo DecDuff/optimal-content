@@ -21,6 +21,9 @@ export type TaskRow = {
   title: string;
   description: string;
   video_url: string;
+  tags: string[] | null;
+  complexity_level: string | null;
+  target_platform: string | null;
   budget: number;
   status: TaskStatus;
   claimed_at: string | null;

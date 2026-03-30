@@ -12,6 +12,15 @@ const TITLE_MAX = 200;
 const FEE_PCT = Number(process.env.NEXT_PUBLIC_PLATFORM_FEE_PERCENT ?? 20);
 const OPTIMIZER_PCT = 100 - FEE_PCT;
 
+const TAG_OPTIONS = ["Thumbnail", "SEO", "Hook", "Editing"] as const;
+type TagOption = (typeof TAG_OPTIONS)[number];
+
+const COMPLEXITY_OPTIONS = ["beginner", "intermediate", "expert"] as const;
+type ComplexityOption = (typeof COMPLEXITY_OPTIONS)[number];
+
+const TARGET_PLATFORM_OPTIONS = ["youtube_longform", "youtube_shorts", "tiktok", "instagram_reels"] as const;
+type TargetPlatformOption = (typeof TARGET_PLATFORM_OPTIONS)[number];
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -23,6 +32,9 @@ export function PostJobModal({ open, onClose }: Props) {
   const [description, setDescription] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
   const [budgetDollars, setBudgetDollars] = useState("50");
+  const [tags, setTags] = useState<TagOption[]>([]);
+  const [complexityLevel, setComplexityLevel] = useState<ComplexityOption>("beginner");
+  const [targetPlatform, setTargetPlatform] = useState<TargetPlatformOption>("youtube_longform");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -41,6 +53,13 @@ export function PostJobModal({ open, onClose }: Props) {
     setDescription("");
     setVideoUrl("");
     setBudgetDollars("50");
+    setTags([]);
+    setComplexityLevel("beginner");
+    setTargetPlatform("youtube_longform");
+  }, []);
+
+  const toggleTag = useCallback((tag: TagOption) => {
+    setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
   }, []);
 
   const handleClose = useCallback(() => {
@@ -74,6 +93,11 @@ export function PostJobModal({ open, onClose }: Props) {
       return;
     }
 
+    if (tags.length === 0) {
+      toast.error("Select at least one tag.");
+      return;
+    }
+
     const budget = Math.round(dollars * 100);
     if (budget < 50) {
       toast.error("Budget must be at least $0.50.");
@@ -90,6 +114,9 @@ export function PostJobModal({ open, onClose }: Props) {
           description: d,
           video_url: v,
           budget,
+          tags,
+          complexity_level: complexityLevel,
+          target_platform: targetPlatform,
         }),
       });
       const data = await res.json();
@@ -237,6 +264,82 @@ export function PostJobModal({ open, onClose }: Props) {
                   {OPTIMIZER_PCT}% to optimizer on approval ({FEE_PCT}% platform).
                 </p>
               </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <label className="text-xs font-medium text-slate-400">Tags</label>
+                  <span className="text-[10px] text-slate-500">{tags.length} selected</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {TAG_OPTIONS.map((tag) => {
+                    const active = tags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                        aria-pressed={active}
+                        className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
+                          active
+                            ? "border-violet-500/60 bg-violet-500/15 text-white"
+                            : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/15"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-400">Complexity level</label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {COMPLEXITY_OPTIONS.map((opt) => {
+                    const active = complexityLevel === opt;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setComplexityLevel(opt)}
+                        aria-pressed={active}
+                        className={`rounded-xl border px-4 py-2 text-xs font-semibold transition ${
+                          active
+                            ? "border-violet-500/60 bg-violet-500/15 text-white"
+                            : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/15"
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-slate-400">Target platform</label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {TARGET_PLATFORM_OPTIONS.map((opt) => {
+                    const active = targetPlatform === opt;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setTargetPlatform(opt)}
+                        aria-pressed={active}
+                        className={`rounded-xl border px-4 py-2 text-xs font-semibold transition ${
+                          active
+                            ? "border-cyan-500/60 bg-cyan-500/15 text-white"
+                            : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/15"
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="flex flex-wrap gap-3 pt-2">
                 <motion.button
                   type="button"
