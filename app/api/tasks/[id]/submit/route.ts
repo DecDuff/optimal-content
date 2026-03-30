@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { isValidHttpsUrl } from "@/lib/validation";
+import { AI_SUBMISSION_REJECT_MESSAGE } from "@/lib/ai/constants";
+import { getOpenAIClient } from "@/lib/ai/openai-client";
+import { verifySubmissionWithAI } from "@/lib/ai/verify-submission";
 import type { ChecklistState, TaskRow } from "@/types/database";
 
 type Params = { params: Promise<{ id: string }> };
@@ -67,6 +70,25 @@ export async function POST(request: Request, context: Params) {
         { success: false, error: "Complete all 5 checklist items before submitting" },
         { status: 400 }
       );
+    }
+
+    const row = task as TaskRow;
+    const aiClient = getOpenAIClient();
+    if (aiClient) {
+      try {
+        const pass = await verifySubmissionWithAI(aiClient, row, submissionUrl);
+        if (!pass) {
+          return NextResponse.json({ success: false, error: AI_SUBMISSION_REJECT_MESSAGE }, { status: 422 });
+        }
+      } catch {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "AI verification is temporarily unavailable. Try again shortly.",
+          },
+          { status: 503 }
+        );
+      }
     }
 
     const now = new Date().toISOString();

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { isValidYoutubeOrVideoUrl } from "@/lib/validation";
 
@@ -22,6 +22,12 @@ type ComplexityOption = (typeof COMPLEXITY_OPTIONS)[number];
 const TARGET_PLATFORM_OPTIONS = ["youtube_longform", "youtube_shorts", "tiktok", "instagram_reels"] as const;
 type TargetPlatformOption = (typeof TARGET_PLATFORM_OPTIONS)[number];
 
+type AiSuggestion = {
+  polishedDescription: string;
+  suggestedTags: string[];
+  difficulty: "Beginner" | "Intermediate" | "Advanced";
+};
+
 type Props = {
   open: boolean;
   onClose: () => void;
@@ -39,6 +45,8 @@ export function PostJobModal({ open, onClose }: Props) {
   const [complexityLevel, setComplexityLevel] = useState<ComplexityOption>("beginner");
   const [targetPlatform, setTargetPlatform] = useState<TargetPlatformOption>("youtube_longform");
   const [loading, setLoading] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -61,6 +69,7 @@ export function PostJobModal({ open, onClose }: Props) {
     setOtherCustomTag("");
     setComplexityLevel("beginner");
     setTargetPlatform("youtube_longform");
+    setAiSuggestion(null);
   }, []);
 
   const togglePresetTag = useCallback((tag: PresetTag) => {
@@ -77,11 +86,84 @@ export function PostJobModal({ open, onClose }: Props) {
   }, [presetTags, otherSelected, otherCustomTag]);
 
   const handleClose = useCallback(() => {
-    if (!loading) {
+    if (!loading && !aiBusy) {
       onClose();
       reset();
     }
-  }, [loading, onClose, reset]);
+  }, [loading, aiBusy, onClose, reset]);
+
+  async function runAiPolishAndTag() {
+    const raw = description.trim();
+    if (raw.length < 20) {
+      toast.error("Write at least 20 characters of brief before using AI polish.");
+      return;
+    }
+    setAiBusy(true);
+    try {
+      const res = await fetch("/api/ai/classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: raw, title: title.trim() || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "AI request failed");
+        return;
+      }
+      setAiSuggestion({
+        polishedDescription: data.polishedDescription,
+        suggestedTags: data.suggestedTags ?? [],
+        difficulty: data.difficulty ?? "Intermediate",
+      });
+      toast.success("Suggestions ready — review below.");
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  function applyPolishedDescription() {
+    if (!aiSuggestion) return;
+    setDescription(aiSuggestion.polishedDescription.slice(0, DESC_MAX));
+    toast.success("Description updated from AI.");
+  }
+
+  function applySuggestedTags() {
+    if (!aiSuggestion) return;
+    const tags = aiSuggestion.suggestedTags.map((t) => t.trim()).filter(Boolean).slice(0, 3);
+    const nextPresets: PresetTag[] = [];
+    const nonPreset: string[] = [];
+    for (const t of tags) {
+      const presetMatch = PRESET_TAGS.find((p) => p.toLowerCase() === t.toLowerCase());
+      if (presetMatch && !nextPresets.includes(presetMatch)) nextPresets.push(presetMatch);
+      else nonPreset.push(t);
+    }
+    const custom =
+      nonPreset.length > 0 ? nonPreset.join(" · ").slice(0, CUSTOM_TAG_MAX) : null;
+    setPresetTags((prev) => {
+      const merged = [...prev];
+      for (const p of nextPresets) {
+        if (!merged.includes(p)) merged.push(p);
+      }
+      return merged;
+    });
+    if (custom) {
+      setOtherSelected(true);
+      setOtherCustomTag(custom);
+    }
+    toast.success("Tags applied — adjust before posting.");
+  }
+
+  function applySuggestedComplexity() {
+    if (!aiSuggestion) return;
+    const d = aiSuggestion.difficulty;
+    const low = d.toLowerCase();
+    if (low === "beginner") setComplexityLevel("beginner");
+    else if (low === "intermediate") setComplexityLevel("intermediate");
+    else setComplexityLevel("expert");
+    toast.success("Complexity updated.");
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -221,7 +303,7 @@ export function PostJobModal({ open, onClose }: Props) {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleClose}
-                disabled={loading}
+                disabled={loading || aiBusy}
                 className="rounded-lg border border-white/10 p-2 text-zinc-400 transition hover:bg-white/5 hover:text-white disabled:opacity-40"
               >
                 <X className="h-4 w-4" strokeWidth={1.5} />
@@ -241,11 +323,27 @@ export function PostJobModal({ open, onClose }: Props) {
                 />
               </div>
               <div>
-                <div className="flex justify-between gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <label className="text-xs font-medium text-slate-400">Brief / deliverables</label>
-                  <span className="text-[10px] tabular-nums text-slate-500">
-                    {description.length}/{DESC_MAX}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] tabular-nums text-slate-500">
+                      {description.length}/{DESC_MAX}
+                    </span>
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.98 }}
+                      disabled={loading || aiBusy}
+                      onClick={() => void runAiPolishAndTag()}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-violet-500/45 bg-violet-500/15 px-3 py-1.5 text-[11px] font-semibold text-violet-100 shadow-[0_0_20px_-8px_rgba(139,92,246,0.5)] transition hover:bg-violet-500/25 disabled:opacity-45"
+                    >
+                      {aiBusy ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                      )}
+                      AI Polish &amp; Tag
+                    </motion.button>
+                  </div>
                 </div>
                 <textarea
                   required
@@ -253,9 +351,76 @@ export function PostJobModal({ open, onClose }: Props) {
                   rows={5}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="mt-1.5 w-full resize-y rounded-xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm leading-relaxed text-slate-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] outline-none backdrop-blur-md focus:border-violet-500/40"
+                  disabled={aiBusy}
+                  className="mt-1.5 w-full resize-y rounded-xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm leading-relaxed text-slate-300 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] outline-none backdrop-blur-md focus:border-violet-500/40 disabled:opacity-60"
                   placeholder="What should the optimizer deliver? Be specific about pacing, hooks, and assets."
                 />
+                {aiSuggestion ? (
+                  <div className="mt-3 space-y-3 rounded-xl border border-violet-500/35 bg-gradient-to-br from-violet-500/10 to-indigo-500/5 p-4 backdrop-blur-md">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-200/90">
+                      AI suggestions
+                    </p>
+                    <div>
+                      <p className="text-[10px] font-medium text-slate-500">Polished brief</p>
+                      <p className="mt-1 max-h-32 overflow-y-auto rounded-lg border border-white/10 bg-slate-950/40 p-3 text-xs leading-relaxed text-slate-300">
+                        {aiSuggestion.polishedDescription}
+                      </p>
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.98 }}
+                        disabled={loading}
+                        onClick={applyPolishedDescription}
+                        className="mt-2 rounded-lg border border-white/15 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-slate-200 transition hover:bg-white/[0.1]"
+                      >
+                        Use polished description
+                      </motion.button>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-medium text-slate-500">Suggested tags</p>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {aiSuggestion.suggestedTags.map((t, i) => (
+                          <span
+                            key={`${i}-${t}`}
+                            className="rounded-full border border-cyan-500/35 bg-cyan-500/10 px-2.5 py-0.5 text-[11px] text-cyan-100/90"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.98 }}
+                        disabled={loading}
+                        onClick={applySuggestedTags}
+                        className="mt-2 rounded-lg border border-white/15 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-slate-200 transition hover:bg-white/[0.1]"
+                      >
+                        Apply tags
+                      </motion.button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] text-slate-500">Difficulty</span>
+                      <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-100/90">
+                        {aiSuggestion.difficulty}
+                      </span>
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.98 }}
+                        disabled={loading}
+                        onClick={applySuggestedComplexity}
+                        className="rounded-lg border border-white/15 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-slate-200 transition hover:bg-white/[0.1]"
+                      >
+                        Use complexity
+                      </motion.button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAiSuggestion(null)}
+                      className="text-[10px] font-medium text-slate-500 underline-offset-2 hover:text-slate-400 hover:underline"
+                    >
+                      Dismiss suggestions
+                    </button>
+                  </div>
+                ) : null}
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-400">YouTube video URL</label>
@@ -402,16 +567,16 @@ export function PostJobModal({ open, onClose }: Props) {
                   whileHover={{ scale: loading ? 1 : 1.02 }}
                   whileTap={{ scale: loading ? 1 : 0.98 }}
                   onClick={handleClose}
-                  disabled={loading}
+                  disabled={loading || aiBusy}
                   className="min-h-12 rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-slate-400 backdrop-blur-sm touch-manipulation disabled:pointer-events-none disabled:opacity-50"
                 >
                   Cancel
                 </motion.button>
                 <motion.button
                   type="submit"
-                  disabled={loading}
-                  whileHover={{ scale: loading ? 1 : 1.02 }}
-                  whileTap={{ scale: loading ? 1 : 0.98 }}
+                  disabled={loading || aiBusy}
+                  whileHover={{ scale: loading || aiBusy ? 1 : 1.02 }}
+                  whileTap={{ scale: loading || aiBusy ? 1 : 0.98 }}
                   aria-busy={loading}
                   className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border border-indigo-500/50 bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_40px_-10px_rgba(99,102,241,0.55)] touch-manipulation disabled:pointer-events-none disabled:opacity-55"
                 >
