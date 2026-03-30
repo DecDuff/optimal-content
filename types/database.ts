@@ -21,6 +21,14 @@ export type ProfileRow = {
 };
 
 /** `budget` is USD cents (integer), column name in Supabase: `budget`. */
+export type MessageRow = {
+  id: string;
+  task_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+};
+
 export type TaskRow = {
   id: string;
   creator_id: string;

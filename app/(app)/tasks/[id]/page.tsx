@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ClaimCountdown } from "@/components/claim-countdown";
 import { RetentionChecklist } from "@/components/retention-checklist";
+import { TaskMessagesChat } from "@/components/task-messages-chat";
 import { useSessionProfile } from "@/hooks/use-session-profile";
 import { isValidHttpsUrl } from "@/lib/validation";
 import { optimizerPayoutCents, readPlatformFeePercent } from "@/lib/optimizer-payout";
@@ -139,6 +140,7 @@ export default function TaskWorkspacePage() {
   const [appealOpen, setAppealOpen] = useState(false);
   const [appealReason, setAppealReason] = useState("");
   const [busyAppeal, setBusyAppeal] = useState(false);
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -381,6 +383,10 @@ export default function TaskWorkspacePage() {
   const allChecklistDone = checkedCount === CHECKLIST_KEYS.length;
   const countdownActive =
     task.status === "claimed" || task.status === "submitted";
+  const showTaskChat =
+    Boolean(uid) &&
+    task.status !== "open" &&
+    (isCreator || isOptimizerUser);
 
   const statusLabel = (s: TaskStatus) => s.replace("_", " ");
 
@@ -448,7 +454,7 @@ export default function TaskWorkspacePage() {
       ) : null}
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {isCreator && task.status === "open" ? (
             <div className="glass-panel border-[#2e5bff]/30 p-6">
               <p className="text-sm leading-relaxed text-zinc-300">
@@ -492,6 +498,32 @@ export default function TaskWorkspacePage() {
 
           {isCreator && task.status === "submitted" ? (
             <div className="glass-panel border-emerald-500/25 p-6">
+              {task.appeal_reason?.trim() ? (
+                <div className="mb-5 space-y-3">
+                  <div className="rounded-xl border border-cyan-500/35 bg-gradient-to-r from-cyan-500/15 to-indigo-500/10 px-4 py-3 shadow-[0_0_28px_-12px_rgba(34,211,238,0.35)] backdrop-blur-md">
+                    <p className="text-sm font-semibold tracking-tight text-cyan-100/95">
+                      This work has been resubmitted after an appeal.
+                    </p>
+                    <p className="mt-1 text-xs text-cyan-200/60">
+                      Review the updated deliverable below. You can approve, or file another appeal with a new note.
+                    </p>
+                  </div>
+                  <details className="group overflow-hidden rounded-xl border border-white/10 bg-slate-950/35 backdrop-blur-xl">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-[0.1em] text-zinc-500 transition hover:bg-white/[0.04] [&::-webkit-details-marker]:hidden">
+                      <span>Original appeal note</span>
+                      <span className="text-[10px] font-normal normal-case tracking-normal text-zinc-600 group-open:hidden">
+                        Show
+                      </span>
+                      <span className="hidden text-[10px] font-normal normal-case tracking-normal text-zinc-600 group-open:inline">
+                        Hide
+                      </span>
+                    </summary>
+                    <div className="border-t border-white/[0.06] px-4 py-3 text-sm leading-relaxed text-zinc-300">
+                      {task.appeal_reason}
+                    </div>
+                  </details>
+                </div>
+              ) : null}
               <p className="text-sm text-zinc-200">
                 The optimizer submitted deliverables. Approve to route their share to the connected Stripe
                 account (test mode).
@@ -578,7 +610,7 @@ export default function TaskWorkspacePage() {
           ) : null}
         </div>
 
-        <div>
+        <div className="min-w-0 space-y-6 lg:sticky lg:top-24 lg:self-start">
           {isAssignedOptimizer ? (
             <motion.div
               initial={{ opacity: 0, x: 12 }}
@@ -618,9 +650,50 @@ export default function TaskWorkspacePage() {
           ) : task.status === "open" && isCreator && funded ? (
             <p className="text-sm text-zinc-500">Live on the job feed — waiting for an optimizer to claim.</p>
           ) : null}
+
+          {showTaskChat ? (
+            <>
+              <div
+                className={
+                  mobileChatOpen
+                    ? "fixed inset-x-3 bottom-0 z-[120] flex max-h-[78vh] min-h-[300px] flex-col lg:relative lg:inset-auto lg:z-auto lg:max-h-[min(520px,calc(100vh-9rem))] lg:min-h-[360px]"
+                    : "hidden min-h-[360px] flex-col lg:flex lg:max-h-[min(520px,calc(100vh-9rem))]"
+                }
+              >
+                <TaskMessagesChat
+                  taskId={id}
+                  currentUserId={uid}
+                  onRequestClose={() => setMobileChatOpen(false)}
+                />
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
     </div>
+
+    {showTaskChat && !mobileChatOpen ? (
+      <motion.button
+        type="button"
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        whileTap={{ scale: 0.97 }}
+        onClick={() => setMobileChatOpen(true)}
+        className="fixed bottom-6 right-6 z-[125] flex items-center gap-2 rounded-full border border-[#2e5bff]/50 bg-gradient-to-r from-[#2e5bff]/90 to-indigo-600/90 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_40px_-8px_rgba(46,91,255,0.65)] lg:hidden"
+      >
+        <MessageCircle className="h-5 w-5" />
+        Messages
+      </motion.button>
+    ) : null}
+
+    {showTaskChat && mobileChatOpen ? (
+      <button
+        type="button"
+        aria-label="Close messages overlay"
+        onClick={() => setMobileChatOpen(false)}
+        className="fixed inset-0 z-[115] bg-[#020617]/65 backdrop-blur-sm lg:hidden"
+      />
+    ) : null}
 
     <AnimatePresence>
       {appealOpen ? (
