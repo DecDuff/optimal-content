@@ -39,7 +39,6 @@ export async function GET(request: Request) {
       .select("*")
       .eq("status", "open")
       .neq("creator_id", user.id)
-      .not("stripe_charge_id", "is", null)
       .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
