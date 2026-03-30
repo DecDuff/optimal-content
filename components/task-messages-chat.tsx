@@ -4,22 +4,58 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, SendHorizontal, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { markTaskMessagesReadThrough } from "@/lib/task-message-read";
 import type { MessageRow } from "@/types/database";
+
+const CONTENT_MAX = 8000;
 
 type Props = {
   taskId: string;
   currentUserId: string | undefined;
+  /** When true, persist “read through latest message” so dashboard unread dots clear while this chat is visible. */
+  readTrackingActive?: boolean;
   /** Mobile drawer header — calls close when user taps X */
   onRequestClose?: () => void;
   className?: string;
 };
 
-export function TaskMessagesChat({ taskId, currentUserId, onRequestClose, className = "" }: Props) {
+function rowFromPayload(raw: Record<string, unknown>): MessageRow | null {
+  const id = raw.id;
+  const task_id = raw.task_id;
+  const sender_id = raw.sender_id;
+  const content = raw.content;
+  const created_at = raw.created_at;
+  if (
+    typeof id === "string" &&
+    typeof task_id === "string" &&
+    typeof sender_id === "string" &&
+    typeof content === "string" &&
+    typeof created_at === "string"
+  ) {
+    return { id, task_id, sender_id, content, created_at };
+  }
+  return null;
+}
+
+export function TaskMessagesChat({
+  taskId,
+  currentUserId,
+  readTrackingActive = true,
+  onRequestClose,
+  className = "",
+}: Props) {
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [sendBusy, setSendBusy] = useState(false);
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const trimmedLen = draft.trim().length;
+  const draftLen = draft.length;
+  const tooLong = draftLen > CONTENT_MAX;
+  const canSend =
+    Boolean(currentUserId) && !sendBusy && trimmedLen >= 1 && !tooLong;
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -52,12 +88,57 @@ export function TaskMessagesChat({ taskId, currentUserId, onRequestClose, classN
   }, [load]);
 
   useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const channel = supabase
+      .channel(`messages:task:${taskId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `task_id=eq.${taskId}`,
+        },
+        (payload) => {
+          const row = rowFromPayload(payload.new as Record<string, unknown>);
+          if (!row) return;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === row.id)) return prev;
+            return [...prev, row];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [taskId]);
+
+  useEffect(() => {
+    if (!readTrackingActive || loading || messages.length === 0) return;
+    let latest = messages[0].created_at;
+    for (const m of messages) {
+      if (m.created_at > latest) latest = m.created_at;
+    }
+    markTaskMessagesReadThrough(taskId, latest);
+  }, [readTrackingActive, loading, messages, taskId]);
+
+  useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
   async function send() {
+    if (!currentUserId) return;
+    if (trimmedLen < 1) {
+      toast.error("Message cannot be empty.");
+      return;
+    }
+    if (tooLong) {
+      toast.error(`Message is too long (max ${CONTENT_MAX} characters).`);
+      return;
+    }
     const text = draft.trim();
-    if (!text || !currentUserId) return;
     setSendBusy(true);
     try {
       const res = await fetch(`/api/tasks/${taskId}/messages`, {
@@ -71,12 +152,24 @@ export function TaskMessagesChat({ taskId, currentUserId, onRequestClose, classN
         return;
       }
       setDraft("");
-      setMessages((prev) => [...prev, data.message as MessageRow]);
+      const inserted = data.message as MessageRow;
+      setMessages((prev) => (prev.some((m) => m.id === inserted.id) ? prev : [...prev, inserted]));
     } catch {
       toast.error("Network error");
     } finally {
       setSendBusy(false);
     }
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    e.preventDefault();
+    if (!canSend) {
+      if (tooLong) toast.error(`Message is too long (max ${CONTENT_MAX} characters).`);
+      else if (trimmedLen < 1) toast.error("Message cannot be empty.");
+      return;
+    }
+    void send();
   }
 
   return (
@@ -86,7 +179,7 @@ export function TaskMessagesChat({ taskId, currentUserId, onRequestClose, classN
       <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Messages</p>
-          <p className="text-xs text-zinc-400">Creator & optimizer</p>
+          <p className="text-xs text-zinc-400">Creator & optimizer · Live</p>
         </div>
         {onRequestClose ? (
           <button
@@ -143,24 +236,25 @@ export function TaskMessagesChat({ taskId, currentUserId, onRequestClose, classN
       </div>
 
       <div className="border-t border-white/[0.08] p-3">
+        {tooLong ? (
+          <p className="mb-2 text-[11px] text-red-400/90">
+            Too long — shorten to {CONTENT_MAX} characters or less.
+          </p>
+        ) : null}
         <div className="flex gap-2">
           <input
             type="text"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
-            }}
+            onKeyDown={onKeyDown}
+            maxLength={CONTENT_MAX}
             placeholder="Type a message…"
             disabled={!currentUserId || sendBusy}
-            className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-[#2e5bff]/50"
+            className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-[#2e5bff]/50 disabled:opacity-50"
           />
           <button
             type="button"
-            disabled={!currentUserId || sendBusy || !draft.trim()}
+            disabled={!canSend}
             onClick={() => void send()}
             className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#2e5bff]/45 bg-[#2e5bff]/20 px-4 py-2.5 text-sm font-semibold text-[#9cb4ff] transition hover:bg-[#2e5bff]/30 disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -168,6 +262,9 @@ export function TaskMessagesChat({ taskId, currentUserId, onRequestClose, classN
             Send
           </button>
         </div>
+        <p className="mt-1.5 text-[10px] text-zinc-600">
+          {draftLen}/{CONTENT_MAX} · Empty messages won&apos;t send
+        </p>
       </div>
     </div>
   );

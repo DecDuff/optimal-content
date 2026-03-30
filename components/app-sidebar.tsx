@@ -17,6 +17,7 @@ import {
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { usePostJobModal } from "@/contexts/post-job-modal-context";
 import { useSessionProfile } from "@/hooks/use-session-profile";
+import { useUnreadTaskMessages } from "@/hooks/use-unread-task-messages";
 
 const STROKE = 1.25;
 
@@ -46,7 +47,9 @@ export function AppSidebar() {
   const router = useRouter();
   const { openPostJob } = usePostJobModal();
   const { profile, loading } = useSessionProfile();
+  const { unreadTaskIds } = useUnreadTaskMessages();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const hasUnreadChats = unreadTaskIds.size > 0;
   const isCreator = profile?.role === "creator";
   const isOptimizer = profile?.role === "optimizer";
 
@@ -76,7 +79,7 @@ export function AppSidebar() {
         <Link
           href="/dashboard"
           onClick={() => setMobileOpen(false)}
-          className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition ${
+          className={`relative flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition ${
             pathname === "/dashboard"
               ? "border border-zinc-800/40 bg-white/[0.06] text-white shadow-[0_0_24px_-8px_rgba(46,91,255,0.25)]"
               : "border border-transparent text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200"
@@ -86,6 +89,13 @@ export function AppSidebar() {
             <LayoutList className="h-4 w-4 text-zinc-500" strokeWidth={STROKE} aria-hidden />
           </IconWrap>
           Dashboard
+          {hasUnreadChats ? (
+            <span
+              className="absolute right-2 top-2 h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.95)] ring-2 ring-[#09090b]"
+              title="Unread task messages"
+              aria-hidden
+            />
+          ) : null}
         </Link>
 
         {isOptimizer ? (

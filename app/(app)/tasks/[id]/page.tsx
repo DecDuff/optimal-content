@@ -10,7 +10,9 @@ import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ClaimCountdown } from "@/components/claim-countdown";
 import { RetentionChecklist } from "@/components/retention-checklist";
 import { TaskMessagesChat } from "@/components/task-messages-chat";
+import { useMinLg } from "@/hooks/use-min-lg";
 import { useSessionProfile } from "@/hooks/use-session-profile";
+import { useUnreadTaskMessages } from "@/hooks/use-unread-task-messages";
 import { isValidHttpsUrl } from "@/lib/validation";
 import { optimizerPayoutCents, readPlatformFeePercent } from "@/lib/optimizer-payout";
 import type { ChecklistState, TaskRow, TaskStatus } from "@/types/database";
@@ -131,6 +133,8 @@ export default function TaskWorkspacePage() {
   const router = useRouter();
   const id = typeof params.id === "string" ? params.id : "";
   const { profile, loading: profileLoading } = useSessionProfile();
+  const lg = useMinLg();
+  const { unreadTaskIds } = useUnreadTaskMessages();
 
   const [task, setTask] = useState<TaskRow | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -387,6 +391,8 @@ export default function TaskWorkspacePage() {
     Boolean(uid) &&
     task.status !== "open" &&
     (isCreator || isOptimizerUser);
+  const chatReadTrackingActive = lg || mobileChatOpen;
+  const taskHasUnreadMessages = Boolean(id) && unreadTaskIds.has(id);
 
   const statusLabel = (s: TaskStatus) => s.replace("_", " ");
 
@@ -663,6 +669,7 @@ export default function TaskWorkspacePage() {
                 <TaskMessagesChat
                   taskId={id}
                   currentUserId={uid}
+                  readTrackingActive={chatReadTrackingActive}
                   onRequestClose={() => setMobileChatOpen(false)}
                 />
               </div>
@@ -681,7 +688,15 @@ export default function TaskWorkspacePage() {
         onClick={() => setMobileChatOpen(true)}
         className="fixed bottom-6 right-6 z-[125] flex items-center gap-2 rounded-full border border-[#2e5bff]/50 bg-gradient-to-r from-[#2e5bff]/90 to-indigo-600/90 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_40px_-8px_rgba(46,91,255,0.65)] lg:hidden"
       >
-        <MessageCircle className="h-5 w-5" />
+        <span className="relative inline-flex">
+          <MessageCircle className="h-5 w-5" />
+          {taskHasUnreadMessages ? (
+            <span
+              className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-violet-400 shadow-[0_0_12px_rgba(167,139,250,0.95)] ring-2 ring-[#1e1b4b]"
+              aria-hidden
+            />
+          ) : null}
+        </span>
         Messages
       </motion.button>
     ) : null}

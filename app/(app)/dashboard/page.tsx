@@ -10,6 +10,7 @@ import { DashboardPostOpener } from "@/components/dashboard-post-opener";
 import { OptimizerWalletCard } from "@/components/optimizer-wallet-card";
 import { usePostJobModal } from "@/contexts/post-job-modal-context";
 import { useSessionProfile } from "@/hooks/use-session-profile";
+import { useUnreadTaskMessages } from "@/hooks/use-unread-task-messages";
 import { optimizerPayoutCents } from "@/lib/optimizer-payout";
 import type { TaskRow, TaskStatus } from "@/types/database";
 
@@ -41,6 +42,7 @@ function statusStyle(s: TaskStatus): string {
 function DashboardContent() {
   const { openPostJob } = usePostJobModal();
   const { profile, loading: profileLoading } = useSessionProfile();
+  const { unreadTaskIds } = useUnreadTaskMessages();
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [payingId, setPayingId] = useState<string | null>(null);
@@ -229,12 +231,21 @@ function DashboardContent() {
                   className="glass-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
-                    <Link
-                      href={`/tasks/${t.id}`}
-                      className="text-sm font-medium text-white transition hover:text-violet-300"
-                    >
-                      {t.title}
-                    </Link>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/tasks/${t.id}`}
+                        className="text-sm font-medium text-white transition hover:text-violet-300"
+                      >
+                        {t.title}
+                      </Link>
+                      {t.status !== "open" && unreadTaskIds.has(t.id) ? (
+                        <span
+                          className="inline-flex h-2 w-2 shrink-0 rounded-full bg-violet-400 shadow-[0_0_12px_rgba(167,139,250,0.9)] ring-2 ring-slate-950/80"
+                          title="Unread messages on this task"
+                          aria-label="Unread messages on this task"
+                        />
+                      ) : null}
+                    </div>
                     <p className="mt-1 text-xs text-slate-500">
                       <span
                         className={`inline-block rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${statusStyle(t.status)}`}
