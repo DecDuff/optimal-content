@@ -39,9 +39,13 @@ export async function POST(_request: Request, context: Params) {
     return NextResponse.json({ error: "Transfer amount too small" }, { status: 400 });
   }
 
-  /** Local / mock charges are not real Stripe objects — skip transfer and mark approved in DB. */
+  /** Dev / Stripe test charges — skip Connect transfer (fake IDs aren't valid source_transaction; test ch_* may lack payouts setup). */
   const chargeId = task.stripe_charge_id as string;
-  if (chargeId.startsWith("ch_fake") || chargeId.startsWith("ch_dev_")) {
+  const skipRealTransfer =
+    chargeId.startsWith("ch_fake") ||
+    chargeId.startsWith("ch_dev_") ||
+    chargeId.startsWith("ch_test_");
+  if (skipRealTransfer) {
     const now = new Date().toISOString();
     const mockTransferId = `tr_mock_${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`;
     const { data: updated, error } = await admin

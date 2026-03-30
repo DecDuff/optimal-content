@@ -346,6 +346,24 @@ export default function TaskWorkspacePage() {
     }
   }
 
+  async function refundTask() {
+    setBusy("refund");
+    try {
+      const res = await fetch(`/api/tasks/${id}/refund`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error ?? "Refund failed");
+        return;
+      }
+      toast.success("Task cancelled — refund processed.");
+      setTask(data.task as TaskRow);
+      await refreshTask();
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (!id) {
     return <p className="p-8 text-sm text-zinc-500">Invalid task</p>;
   }
@@ -580,6 +598,16 @@ export default function TaskWorkspacePage() {
             <p className="text-sm text-zinc-500">Approved — payout recorded for this task.</p>
           ) : null}
 
+          {task.status === "refunded" ? (
+            <div className="glass-panel border-rose-500/25 p-4 sm:p-5">
+              <p className="text-sm text-rose-200/90">
+                {isCreator
+                  ? "This task was cancelled and the charge was refunded to your payment method."
+                  : "This task was cancelled by the creator; the job payment was refunded."}
+              </p>
+            </div>
+          ) : null}
+
           {task.status === "disputed" || task.status === "appealed" ? (
             <div className="glass-panel border-amber-500/20 p-4 sm:p-5">
               <p className="text-sm text-amber-200/90">
@@ -592,6 +620,24 @@ export default function TaskWorkspacePage() {
                   <span className="font-medium text-zinc-400">Creator note: </span>
                   {task.appeal_reason}
                 </p>
+              ) : null}
+              {isCreator ? (
+                <div className="mt-4 flex flex-col gap-3 border-t border-white/[0.06] pt-4 sm:flex-row sm:flex-wrap">
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.98 }}
+                    disabled={busy !== null || busyAppeal}
+                    onClick={refundTask}
+                    className="inline-flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl border border-rose-500/45 bg-gradient-to-r from-rose-600/25 to-red-600/20 px-5 py-3 text-sm font-semibold text-rose-100/95 shadow-[0_0_28px_-12px_rgba(244,63,94,0.35)] backdrop-blur-md transition hover:from-rose-600/35 hover:to-red-600/28 disabled:opacity-50 sm:w-auto"
+                  >
+                    {busy === "refund" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {busy === "refund" ? "Processing refund…" : "Cancel Task & Refund"}
+                  </motion.button>
+                  <p className="w-full text-[11px] leading-snug text-zinc-500 sm:w-auto sm:flex-1 sm:py-2">
+                    Refunds the escrow to your card if no payout was sent. Use when you and the optimizer
+                    can&apos;t resolve the appeal.
+                  </p>
+                </div>
               ) : null}
               {isOptimizerUser && (task.status === "appealed" || task.status === "disputed") ? (
                 <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-4">

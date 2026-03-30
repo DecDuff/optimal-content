@@ -8,7 +8,8 @@ export type TaskStatus =
   | "approved"
   | "disputed"
   | "appealed"
-  | "awaiting_checkout";
+  | "awaiting_checkout"
+  | "refunded";
 
 export type ChecklistState = Record<"1" | "2" | "3" | "4" | "5", boolean>;
 

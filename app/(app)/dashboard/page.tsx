@@ -35,6 +35,8 @@ function statusStyle(s: TaskStatus): string {
       return "border-red-500/40 text-red-400/90";
     case "appealed":
       return "border-orange-500/40 text-orange-300/90";
+    case "refunded":
+      return "border-rose-500/35 text-rose-300/85";
     default:
       return "border-slate-700 text-slate-500";
   }
