@@ -326,7 +326,8 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
                     disabled={claiming === t.id || !funded}
                     title={!funded ? "This job will be claimable after Stripe checkout completes." : undefined}
                     onClick={() => claim(t.id)}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-indigo-500/50 bg-gradient-to-r from-indigo-600/90 to-violet-600/90 px-5 py-2.5 text-xs font-semibold text-white shadow-[0_0_32px_-8px_rgba(99,102,241,0.5)] backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-45"
+                    aria-busy={claiming === t.id}
+                    className="flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl border border-indigo-500/50 bg-gradient-to-r from-indigo-600/90 to-violet-600/90 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_32px_-8px_rgba(99,102,241,0.5)] backdrop-blur-sm disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto sm:py-2.5 sm:text-xs"
                   >
                     {claiming === t.id ? (
                       <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />

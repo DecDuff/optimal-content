@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { isValidYoutubeOrVideoUrl } from "@/lib/validation";
 
@@ -85,6 +85,7 @@ export function PostJobModal({ open, onClose }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     const t = title.trim();
     const d = description.trim();
     const v = videoUrl.trim();
@@ -200,7 +201,7 @@ export function PostJobModal({ open, onClose }: Props) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: 16 }}
             transition={{ type: "spring", stiffness: 380, damping: 28 }}
-            className="glass-panel relative z-[1] max-h-[min(92vh,840px)] w-full max-w-lg overflow-y-auto p-8 shadow-[0_0_80px_-20px_rgba(99,102,241,0.35)]"
+            className="glass-panel relative z-[1] max-h-[min(92vh,840px)] w-full max-w-lg overflow-y-auto p-4 shadow-[0_0_80px_-20px_rgba(99,102,241,0.35)] sm:p-6 md:p-8"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
@@ -395,14 +396,14 @@ export function PostJobModal({ open, onClose }: Props) {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3 pt-2">
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:flex-wrap">
                 <motion.button
                   type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: loading ? 1 : 1.02 }}
+                  whileTap={{ scale: loading ? 1 : 0.98 }}
                   onClick={handleClose}
                   disabled={loading}
-                  className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-2.5 text-sm font-medium text-slate-400 backdrop-blur-sm disabled:opacity-50"
+                  className="min-h-12 rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-slate-400 backdrop-blur-sm touch-manipulation disabled:pointer-events-none disabled:opacity-50"
                 >
                   Cancel
                 </motion.button>
@@ -411,9 +412,11 @@ export function PostJobModal({ open, onClose }: Props) {
                   disabled={loading}
                   whileHover={{ scale: loading ? 1 : 1.02 }}
                   whileTap={{ scale: loading ? 1 : 0.98 }}
-                  className="rounded-xl border border-indigo-500/50 bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_0_40px_-10px_rgba(99,102,241,0.55)] disabled:opacity-50"
+                  aria-busy={loading}
+                  className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border border-indigo-500/50 bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_40px_-10px_rgba(99,102,241,0.55)] touch-manipulation disabled:pointer-events-none disabled:opacity-55"
                 >
-                  {loading ? "Working…" : "Create & pay with Stripe"}
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
+                  {loading ? "Redirecting…" : "Post task & pay with Stripe"}
                 </motion.button>
               </div>
             </form>

@@ -398,7 +398,9 @@ export default function TaskWorkspacePage() {
 
   return (
     <>
-    <div className="min-h-screen px-6 py-8">
+    <div
+      className={`min-h-screen px-4 py-6 sm:px-6 sm:py-8 ${showTaskChat && !mobileChatOpen ? "max-lg:pb-36" : ""}`}
+    >
       <AppBreadcrumb
         items={[
           { label: "Optimal Content", href: "/dashboard" },
@@ -411,17 +413,17 @@ export default function TaskWorkspacePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 320, damping: 32 }}
-        className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between"
+        className="mt-6 flex flex-col gap-5 sm:mt-8 sm:gap-6 lg:flex-row lg:items-start lg:justify-between"
       >
-        <div className="max-w-2xl">
+        <div className="min-w-0 max-w-2xl">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
             Task workspace ·{" "}
             <span className="capitalize text-zinc-300">{statusLabel(task.status)}</span>
           </p>
-          <h1 className="mt-2 bg-gradient-to-br from-white to-zinc-400 bg-clip-text text-2xl font-semibold tracking-tight text-transparent">
+          <h1 className="mt-2 break-words bg-gradient-to-br from-white to-zinc-400 bg-clip-text text-xl font-semibold tracking-tight text-transparent sm:text-2xl">
             {task.title}
           </h1>
-          <p className="mt-3 text-sm leading-relaxed text-zinc-400">{task.description}</p>
+          <p className="mt-3 text-sm leading-relaxed text-zinc-400 break-words">{task.description}</p>
           <a
             href={task.video_url}
             target="_blank"
@@ -431,7 +433,7 @@ export default function TaskWorkspacePage() {
             Open YouTube / video link →
           </a>
         </div>
-        <div className="glass-panel w-full max-w-xs shrink-0 px-6 py-5">
+        <div className="glass-panel w-full max-w-xs shrink-0 px-4 py-4 sm:px-5 sm:py-5 md:px-6">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
             {showOptimizerNetPayout ? "Your payout (est.)" : "Budget"}
           </p>
@@ -450,7 +452,7 @@ export default function TaskWorkspacePage() {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-panel mt-8 p-5"
+          className="glass-panel mt-6 p-4 sm:mt-8 sm:p-5 md:p-6"
         >
           <TaskWorkspaceMetaBadges task={task} />
           <div className="mt-5">
@@ -459,10 +461,10 @@ export default function TaskWorkspacePage() {
         </motion.div>
       ) : null}
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="mt-8 grid gap-8 sm:mt-10 sm:gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0 space-y-6">
           {isCreator && task.status === "open" ? (
-            <div className="glass-panel border-[#2e5bff]/30 p-6">
+            <div className="glass-panel border-[#2e5bff]/30 p-4 sm:p-5 md:p-6">
               <p className="text-sm leading-relaxed text-zinc-300">
                 This job is marked `open`. Optimizers will be able to claim once funding is confirmed and
                 appears on their side.
@@ -474,7 +476,7 @@ export default function TaskWorkspacePage() {
           ) : null}
 
           {canClaim ? (
-            <div className="glass-panel border-[#2e5bff]/30 p-6">
+            <div className="glass-panel border-[#2e5bff]/30 p-4 sm:p-5 md:p-6">
               <p className="text-sm leading-relaxed text-zinc-300">
                 This job is funded and unclaimed. Claim to lock the brief and start your 24-hour delivery
                 window.
@@ -484,8 +486,9 @@ export default function TaskWorkspacePage() {
                 whileHover={{ scale: busy ? 1 : 1.02 }}
                 whileTap={{ scale: busy ? 1 : 0.98 }}
                 disabled={busy !== null}
+                aria-busy={busy === "claim"}
                 onClick={claim}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-500/60 bg-gradient-to-r from-indigo-600 to-violet-600 py-3 text-sm font-semibold text-white shadow-[0_0_32px_-8px_rgba(99,102,241,0.55)] disabled:opacity-50 sm:w-auto sm:px-8"
+                className="mt-4 flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl border border-indigo-500/60 bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_32px_-8px_rgba(99,102,241,0.55)] disabled:pointer-events-none disabled:opacity-50 sm:w-auto"
               >
                 {busy === "claim" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {busy === "claim" ? "Claiming…" : "Claim job"}
@@ -494,7 +497,7 @@ export default function TaskWorkspacePage() {
           ) : null}
 
           {showClaimTeaser ? (
-            <div className="glass-panel border-zinc-700/50 p-5">
+            <div className="glass-panel border-zinc-700/50 p-4 sm:p-5">
               <p className="text-sm text-zinc-400">
                 This task is currently `open` but not yet funded. You&apos;ll be able to claim after checkout
                 completes.
@@ -503,7 +506,7 @@ export default function TaskWorkspacePage() {
           ) : null}
 
           {isCreator && task.status === "submitted" ? (
-            <div className="glass-panel border-emerald-500/25 p-6">
+            <div className="glass-panel border-emerald-500/25 p-4 sm:p-5 md:p-6">
               {task.appeal_reason?.trim() ? (
                 <div className="mb-5 space-y-3">
                   <div className="rounded-xl border border-cyan-500/35 bg-gradient-to-r from-cyan-500/15 to-indigo-500/10 px-4 py-3 shadow-[0_0_28px_-12px_rgba(34,211,238,0.35)] backdrop-blur-md">
@@ -535,25 +538,30 @@ export default function TaskWorkspacePage() {
                 account (test mode).
               </p>
               <div className="mt-5 flex flex-col gap-5">
-                {task.submission_url ? (
-                  <a
-                    href={task.submission_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex w-fit text-sm font-medium text-cyan-400 transition hover:text-cyan-300"
-                  >
-                    Open deliverable link →
-                  </a>
-                ) : (
-                  <p className="text-sm text-zinc-500">No deliverable URL was provided.</p>
-                )}
-                <div className="flex flex-wrap gap-3">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Deliverables</p>
+                  {task.submission_url ? (
+                    <a
+                      href={task.submission_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex w-fit max-w-full break-all text-sm font-medium text-cyan-400 transition hover:text-cyan-300"
+                    >
+                      Open deliverable link →
+                    </a>
+                  ) : (
+                    <p className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-8 text-center text-sm text-zinc-500">
+                      No deliverables attached yet.
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                   <motion.button
                     type="button"
                     whileTap={{ scale: 0.98 }}
                     disabled={busy !== null || busyAppeal}
                     onClick={approve}
-                    className="rounded-lg border border-white/15 bg-white/[0.08] px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/[0.12] disabled:opacity-50"
+                    className="min-h-12 w-full touch-manipulation rounded-xl border border-white/15 bg-white/[0.08] px-5 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/[0.12] disabled:opacity-50 sm:w-auto"
                   >
                     {busy === "approve" ? "Processing…" : "Approve & release payout"}
                   </motion.button>
@@ -562,7 +570,7 @@ export default function TaskWorkspacePage() {
                     whileTap={{ scale: 0.98 }}
                     disabled={busy !== null || busyAppeal}
                     onClick={() => setAppealOpen(true)}
-                    className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-5 py-2.5 text-sm font-semibold text-amber-100/95 backdrop-blur-sm transition hover:bg-amber-500/15 disabled:opacity-50"
+                    className="min-h-12 w-full touch-manipulation rounded-xl border border-amber-500/40 bg-amber-500/10 px-5 py-3 text-sm font-semibold text-amber-100/95 backdrop-blur-sm transition hover:bg-amber-500/15 disabled:opacity-50 sm:w-auto"
                   >
                     Appeal
                   </motion.button>
@@ -576,7 +584,7 @@ export default function TaskWorkspacePage() {
           ) : null}
 
           {task.status === "disputed" || task.status === "appealed" ? (
-            <div className="glass-panel border-amber-500/20 p-5">
+            <div className="glass-panel border-amber-500/20 p-4 sm:p-5">
               <p className="text-sm text-amber-200/90">
                 {task.status === "appealed"
                   ? "This task is under appeal."
@@ -597,7 +605,7 @@ export default function TaskWorkspacePage() {
                       value={deliverableUrl}
                       onChange={(e) => setDeliverableUrl(e.target.value)}
                       placeholder="https://…"
-                      className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950/50 px-4 py-2.5 text-sm text-zinc-200 outline-none focus:border-cyan-500/40"
+                      className="mt-1.5 min-h-12 w-full touch-manipulation rounded-xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-zinc-200 outline-none focus:border-cyan-500/40"
                     />
                   </div>
                   <motion.button
@@ -605,7 +613,7 @@ export default function TaskWorkspacePage() {
                     whileTap={{ scale: 0.98 }}
                     disabled={busy !== null}
                     onClick={resubmitWork}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-600/85 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                    className="flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-600/85 py-3 text-sm font-semibold text-white disabled:opacity-50"
                   >
                     {busy === "resubmit" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                     {busy === "resubmit" ? "Resubmitting…" : "Resubmit Work"}
@@ -631,11 +639,16 @@ export default function TaskWorkspacePage() {
                   value={deliverableUrl}
                   onChange={(e) => setDeliverableUrl(e.target.value)}
                   placeholder="https://… (report, Notion, Drive, or asset)"
-                  className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none backdrop-blur-md focus:border-cyan-500/40"
+                  className="mt-1.5 min-h-12 w-full touch-manipulation rounded-xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none backdrop-blur-md focus:border-cyan-500/40"
                 />
                 <p className="mt-1 text-[10px] text-slate-600">
                   Link to your optimization notes, timeline, or revised asset.
                 </p>
+                {!deliverableUrl.trim() ? (
+                  <p className="mt-3 rounded-xl border border-white/[0.06] bg-slate-950/30 px-4 py-6 text-center text-sm text-slate-500">
+                    No deliverables attached yet.
+                  </p>
+                ) : null}
               </div>
               <motion.button
                 type="button"
@@ -643,7 +656,7 @@ export default function TaskWorkspacePage() {
                 whileTap={{ scale: busy ? 1 : 0.98 }}
                 disabled={busy !== null || !allChecklistDone}
                 onClick={submitWork}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-600/90 to-cyan-600/80 py-3 text-sm font-semibold text-white shadow-[0_0_28px_-8px_rgba(52,211,153,0.35)] disabled:cursor-not-allowed disabled:opacity-35"
+                className="mt-4 flex min-h-12 w-full touch-manipulation items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-600/90 to-cyan-600/80 px-4 py-3 text-sm font-semibold text-white shadow-[0_0_28px_-8px_rgba(52,211,153,0.35)] disabled:cursor-not-allowed disabled:opacity-35"
               >
                 {busy === "submit" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {busy === "submit" ? "Submitting…" : "Submit for creator approval"}
@@ -686,7 +699,7 @@ export default function TaskWorkspacePage() {
         animate={{ opacity: 1, scale: 1 }}
         whileTap={{ scale: 0.97 }}
         onClick={() => setMobileChatOpen(true)}
-        className="fixed bottom-6 right-6 z-[125] flex items-center gap-2 rounded-full border border-[#2e5bff]/50 bg-gradient-to-r from-[#2e5bff]/90 to-indigo-600/90 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_40px_-8px_rgba(46,91,255,0.65)] lg:hidden"
+        className="fixed bottom-6 right-4 z-[125] flex items-center gap-2 rounded-full border border-[#2e5bff]/50 bg-gradient-to-r from-[#2e5bff]/95 to-indigo-600/95 px-5 py-3.5 text-sm font-semibold text-white shadow-[0_0_40px_-8px_rgba(46,91,255,0.65)] touch-manipulation max-lg:bottom-[7.25rem] max-lg:shadow-[0_-12px_40px_-8px_rgba(2,6,23,0.85)] lg:hidden"
       >
         <span className="relative inline-flex">
           <MessageCircle className="h-5 w-5" />

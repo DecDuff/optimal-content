@@ -22,7 +22,15 @@ export function AppBreadcrumb({ items }: Props) {
               <ChevronRight className="h-3 w-3 shrink-0 text-zinc-600" strokeWidth={STROKE} aria-hidden />
             ) : null}
             {last || !item.href ? (
-              <span className={last ? "font-medium text-zinc-200" : "text-zinc-500"}>{item.label}</span>
+              <span
+                className={
+                  last
+                    ? "line-clamp-2 max-w-[100vw] break-words font-medium text-zinc-200 sm:max-w-none"
+                    : "text-zinc-500"
+                }
+              >
+                {item.label}
+              </span>
             ) : (
               <Link href={item.href} className="text-zinc-500 transition hover:text-[#2E5BFF]">
                 {item.label}

@@ -54,8 +54,8 @@ export function TaskMessagesChat({
   const trimmedLen = draft.trim().length;
   const draftLen = draft.length;
   const tooLong = draftLen > CONTENT_MAX;
-  const canSend =
-    Boolean(currentUserId) && !sendBusy && trimmedLen >= 1 && !tooLong;
+  const atCharLimit = draftLen >= CONTENT_MAX;
+  const canSend = Boolean(currentUserId) && !sendBusy && trimmedLen >= 1 && !tooLong;
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -199,8 +199,8 @@ export function TaskMessagesChat({
             <Loader2 className="h-7 w-7 animate-spin text-[#2e5bff]/70" />
           </div>
         ) : messages.length === 0 ? (
-          <p className="py-8 text-center text-xs text-zinc-500">
-            No messages yet. Coordinate on the brief or submission here.
+          <p className="px-4 py-12 text-center text-sm leading-relaxed text-zinc-500">
+            No messages yet. Say hello!
           </p>
         ) : (
           messages.map((m) => {
@@ -235,7 +235,7 @@ export function TaskMessagesChat({
         )}
       </div>
 
-      <div className="border-t border-white/[0.08] p-3">
+      <div className="border-t border-white/[0.08] p-3 sm:p-4">
         {tooLong ? (
           <p className="mb-2 text-[11px] text-red-400/90">
             Too long — shorten to {CONTENT_MAX} characters or less.
@@ -250,20 +250,24 @@ export function TaskMessagesChat({
             maxLength={CONTENT_MAX}
             placeholder="Type a message…"
             disabled={!currentUserId || sendBusy}
-            className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-950/50 px-3 py-2.5 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-[#2e5bff]/50 disabled:opacity-50"
+            className="min-h-12 min-w-0 flex-1 touch-manipulation rounded-xl border border-white/10 bg-slate-950/50 px-3 py-3 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-[#2e5bff]/50 disabled:opacity-50"
           />
           <button
             type="button"
             disabled={!canSend}
             onClick={() => void send()}
-            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#2e5bff]/45 bg-[#2e5bff]/20 px-4 py-2.5 text-sm font-semibold text-[#9cb4ff] transition hover:bg-[#2e5bff]/30 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex min-h-12 shrink-0 touch-manipulation items-center justify-center gap-1.5 rounded-xl border border-[#2e5bff]/45 bg-[#2e5bff]/20 px-4 py-3 text-sm font-semibold text-[#9cb4ff] transition hover:bg-[#2e5bff]/30 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {sendBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-4 w-4" />}
             Send
           </button>
         </div>
-        <p className="mt-1.5 text-[10px] text-zinc-600">
-          {draftLen}/{CONTENT_MAX} · Empty messages won&apos;t send
+        <p
+          className={`mt-2 text-center text-[11px] tabular-nums ${
+            tooLong || atCharLimit ? "text-amber-400/90" : trimmedLen < 1 ? "text-zinc-600" : "text-zinc-500"
+          }`}
+        >
+          {draftLen}/{CONTENT_MAX}
         </p>
       </div>
     </div>
