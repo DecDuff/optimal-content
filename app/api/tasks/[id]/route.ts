@@ -3,6 +3,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import type { TaskRow } from "@/types/database";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, context: Params) {
@@ -28,5 +31,7 @@ export async function GET(_request: Request, context: Params) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  return NextResponse.json({ task: row });
+  const res = NextResponse.json({ task: row });
+  res.headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
+  return res;
 }

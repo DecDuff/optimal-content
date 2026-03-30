@@ -34,15 +34,6 @@ export async function GET(request: Request) {
   }
 
   if (scope === "open") {
-    const { data: allOpen, error: countErr } = await admin
-      .from("tasks")
-      .select("id, creator_id, status, stripe_charge_id")
-      .eq("status", "open");
-
-    if (countErr) {
-      return NextResponse.json({ error: countErr.message }, { status: 500 });
-    }
-
     const { data, error } = await admin
       .from("tasks")
       .select("*")
@@ -52,19 +43,6 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    const totalOpen = allOpen?.length ?? 0;
-    const othersOpen = allOpen?.filter((r) => r.creator_id !== user.id).length ?? 0;
-    const fundedOthers = data?.length ?? 0;
-
-    console.info("[api/tasks open]", {
-      userId: user.id,
-      totalOpenRows: totalOpen,
-      openExcludingSelf: othersOpen,
-      fundedClaimableReturned: fundedOthers,
-      filteredOutUnfunded: othersOpen - fundedOthers,
-      filteredOutOwnTasks: totalOpen - othersOpen,
-    });
 
     return NextResponse.json({ tasks: (data ?? []) as TaskRow[] });
   }

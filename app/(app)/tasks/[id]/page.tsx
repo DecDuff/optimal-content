@@ -52,7 +52,10 @@ export default function TaskWorkspacePage() {
 
   const refreshTask = useCallback(async () => {
     if (!id) return;
-    const res = await fetch(`/api/tasks/${id}`);
+    const res = await fetch(`/api/tasks/${id}`, {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-store" },
+    });
     const data = await res.json();
     if (!res.ok) {
       setLoadError(data.error ?? "Failed to load");
@@ -143,25 +146,6 @@ export default function TaskWorkspacePage() {
       }
       toast.success("Payout released.");
       setTask(data.task as TaskRow);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function resumeCheckout() {
-    setBusy("pay");
-    try {
-      const pay = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_id: id }),
-      });
-      const checkout = await pay.json();
-      if (pay.ok && checkout.url) {
-        window.location.href = checkout.url;
-        return;
-      }
-      toast.error(checkout.error ?? "Checkout failed");
     } finally {
       setBusy(null);
     }
@@ -259,21 +243,15 @@ export default function TaskWorkspacePage() {
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[minmax(0,1fr)_400px]">
         <div className="space-y-6">
-          {isCreator && task.status === "open" && !funded ? (
-            <div className="glass-panel border-amber-500/20 p-5">
-              <p className="text-sm text-zinc-300">
-                Complete Stripe checkout to fund this task. Optimizers only see claimable jobs after payment
-                clears.
+          {isCreator && task.status === "open" ? (
+            <div className="glass-panel border-[#2e5bff]/30 p-6">
+              <p className="text-sm leading-relaxed text-zinc-300">
+                This job is marked `open`. Optimizers will be able to claim once funding is confirmed and
+                appears on their side.
               </p>
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.98 }}
-                disabled={busy !== null}
-                onClick={resumeCheckout}
-                className="mt-4 rounded-lg border border-amber-500/50 bg-amber-500/15 px-4 py-2.5 text-sm font-semibold text-amber-200 disabled:opacity-50"
-              >
-                {busy === "pay" ? "Redirecting…" : "Continue to checkout"}
-              </motion.button>
+              <p className="mt-2 text-[12px] text-zinc-500">
+                Stripe checkout CTA is intentionally hidden on this page when the task is `open`.
+              </p>
             </div>
           ) : null}
 
@@ -300,8 +278,8 @@ export default function TaskWorkspacePage() {
           {showClaimTeaser ? (
             <div className="glass-panel border-zinc-700/50 p-5">
               <p className="text-sm text-zinc-400">
-                The creator has not finished checkout yet. You&apos;ll be able to claim once the task is
-                funded.
+                This task is currently `open` but not yet funded. You&apos;ll be able to claim after checkout
+                completes.
               </p>
             </div>
           ) : null}
