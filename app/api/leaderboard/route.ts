@@ -1,70 +1,85 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import type { LeaderboardRow } from "@/types/leaderboard";
+import type { LeaderboardRow, LeaderboardTier } from "@/types/leaderboard";
 
-/** Rank optimizers by number of tasks they have claimed (any post-claim status). */
+/**
+ * Successful completions for ranking. DB uses `approved` after payout; there is no separate `paid` status yet.
+ * Extend this array if you add e.g. `paid`.
+ */
+const COMPLETE_STATUSES = ["approved"] as const;
+
+function tierFromCompletedCount(n: number): LeaderboardTier {
+  if (n <= 0) return "new";
+  if (n <= 10) return "bronze";
+  if (n <= 50) return "silver";
+  return "gold";
+}
+
+/**
+ * Public leaderboard: all optimizers ranked by approved task count.
+ * Optional auth enriches `my_*` fields for the current user.
+ */
 export async function GET() {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createSupabaseAdmin();
-  const { data: tasks, error: tasksErr } = await admin
+
+  const { data: optimizers, error: optErr } = await admin
+    .from("profiles")
+    .select("id, display_name")
+    .eq("role", "optimizer")
+    .order("display_name", { ascending: true });
+
+  if (optErr) return NextResponse.json({ error: optErr.message }, { status: 500 });
+
+  const { data: completedRows, error: taskErr } = await admin
     .from("tasks")
     .select("optimizer_id")
+    .in("status", [...COMPLETE_STATUSES])
     .not("optimizer_id", "is", null);
 
-  if (tasksErr) return NextResponse.json({ error: tasksErr.message }, { status: 500 });
+  if (taskErr) return NextResponse.json({ error: taskErr.message }, { status: 500 });
 
-  const counts = new Map<string, number>();
-  for (const row of tasks ?? []) {
-    const oid = row.optimizer_id as string;
-    counts.set(oid, (counts.get(oid) ?? 0) + 1);
+  const completedByOptimizer = new Map<string, number>();
+  for (const r of completedRows ?? []) {
+    const oid = r.optimizer_id as string;
+    completedByOptimizer.set(oid, (completedByOptimizer.get(oid) ?? 0) + 1);
   }
 
-  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  const ids = sorted.map(([id]) => id);
-  if (ids.length === 0) {
-    return NextResponse.json({
-      rows: [] as LeaderboardRow[],
-      my_rank: null,
-      my_claim_count: 0,
-      is_top_optimizer: false,
-    });
-  }
+  type Row = LeaderboardRow;
+  const enriched: Row[] = (optimizers ?? []).map((p) => {
+    const id = p.id as string;
+    const completed_tasks = completedByOptimizer.get(id) ?? 0;
+    return {
+      rank: 0,
+      optimizer_id: id,
+      display_name: (p.display_name as string | null)?.trim() || "Optimizer",
+      completed_tasks,
+      tier: tierFromCompletedCount(completed_tasks),
+      is_current_user: user?.id === id,
+    };
+  });
 
-  const { data: profiles, error: profErr } = await admin
-    .from("profiles")
-    .select("id, display_name, role")
-    .in("id", ids);
+  enriched.sort((a, b) => {
+    if (b.completed_tasks !== a.completed_tasks) return b.completed_tasks - a.completed_tasks;
+    return a.display_name.localeCompare(b.display_name, undefined, { sensitivity: "base" });
+  });
 
-  if (profErr) return NextResponse.json({ error: profErr.message }, { status: 500 });
+  const rows: Row[] = enriched.map((r, i) => ({ ...r, rank: i + 1 }));
 
-  const nameById = new Map<string, string>();
-  for (const p of profiles ?? []) {
-    nameById.set(p.id, p.display_name?.trim() || "Optimizer");
-  }
-
-  const rows: LeaderboardRow[] = sorted.map(([optimizer_id, claims], i) => ({
-    rank: i + 1,
-    optimizer_id,
-    display_name: nameById.get(optimizer_id) ?? "Optimizer",
-    claims,
-    is_current_user: optimizer_id === user.id,
-  }));
-
-  const myEntry = rows.find((r) => r.is_current_user);
-  const my_claim_count = myEntry?.claims ?? 0;
+  const myEntry = user ? rows.find((r) => r.is_current_user) : undefined;
+  const my_completed_count = myEntry?.completed_tasks ?? 0;
   const my_rank = myEntry?.rank ?? null;
-  const is_top_optimizer = rows.length > 0 && rows[0].is_current_user;
+  const is_top_optimizer = Boolean(user && rows.length > 0 && rows[0].is_current_user);
 
   return NextResponse.json({
     rows,
     my_rank,
-    my_claim_count,
+    my_completed_count,
     is_top_optimizer,
   });
 }

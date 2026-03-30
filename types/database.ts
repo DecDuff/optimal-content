@@ -17,6 +17,8 @@ export type ProfileRow = {
   id: string;
   role: UserRole;
   display_name: string | null;
+  /** Platform staff — access admin tools (also allow-listed via ADMIN_EMAILS). */
+  is_admin?: boolean;
   created_at: string;
   updated_at: string;
 };

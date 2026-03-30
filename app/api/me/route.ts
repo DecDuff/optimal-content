@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { userIsAdmin } from "@/lib/admin-auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import type { ProfileRow } from "@/types/database";
@@ -23,8 +24,10 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const p = profile as ProfileRow | null;
   return NextResponse.json({
     user: { id: user.id, email: user.email },
-    profile: profile as ProfileRow | null,
+    profile: p,
+    can_access_admin: userIsAdmin(p, user.email),
   });
 }

@@ -30,7 +30,7 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/feed") ||
     path.startsWith("/tasks") ||
     path.startsWith("/profile") ||
-    path.startsWith("/leaderboard");
+    path.startsWith("/admin");
 
   if (isProtected && !user) {
     const url = request.nextUrl.clone();

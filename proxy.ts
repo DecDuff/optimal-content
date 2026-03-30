@@ -12,6 +12,8 @@ export const config = {
     "/tasks/:path*",
     "/profile/:path*",
     "/leaderboard/:path*",
+    "/optimizers/:path*",
+    "/admin/:path*",
     "/login",
     "/auth/callback",
   ],

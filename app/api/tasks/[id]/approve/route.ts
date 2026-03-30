@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
-import { optimizerStripeAccountId, platformFeePercent } from "@/lib/env/server";
-import { getStripe, optimizerShareCents } from "@/lib/stripe";
+import { payoutOptimizerForTask } from "@/lib/task-optimizer-payout";
 import type { TaskRow } from "@/types/database";
 
 type Params = { params: Promise<{ id: string }> };
@@ -25,94 +24,15 @@ export async function POST(_request: Request, context: Params) {
   if (task.status !== "submitted") {
     return NextResponse.json({ error: "Task must be submitted first" }, { status: 400 });
   }
-  if (!task.stripe_charge_id) {
-    return NextResponse.json({ error: "Missing payment charge on task" }, { status: 400 });
-  }
-  if (task.stripe_transfer_id) {
-    return NextResponse.json({ error: "Already paid out" }, { status: 400 });
-  }
 
-  const feePct = platformFeePercent();
   const row = task as TaskRow;
-  const transferAmount = optimizerShareCents(row.budget, feePct);
-  if (transferAmount < 1) {
-    return NextResponse.json({ error: "Transfer amount too small" }, { status: 400 });
+  const result = await payoutOptimizerForTask(admin, taskId, row);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
-  /** Dev / Stripe test charges — skip Connect transfer (fake IDs aren't valid source_transaction; test ch_* may lack payouts setup). */
-  const chargeId = task.stripe_charge_id as string;
-  const skipRealTransfer =
-    chargeId.startsWith("ch_fake") ||
-    chargeId.startsWith("ch_dev_") ||
-    chargeId.startsWith("ch_test_");
-  if (skipRealTransfer) {
-    const now = new Date().toISOString();
-    const mockTransferId = `tr_mock_${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`;
-    const { data: updated, error } = await admin
-      .from("tasks")
-      .update({
-        status: "approved",
-        stripe_transfer_id: mockTransferId,
-        updated_at: now,
-      })
-      .eq("id", taskId)
-      .select("*")
-      .single();
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    return NextResponse.json({
-      task: updated as TaskRow,
-      transfer: {
-        id: mockTransferId,
-        amount_cents: transferAmount,
-        destination: optimizerStripeAccountId(),
-        platform_kept_cents: row.budget - transferAmount,
-        mock: true,
-      },
-    });
-  }
-
-  const stripe = getStripe();
-  const destination = optimizerStripeAccountId();
-
-  try {
-    const transfer = await stripe.transfers.create({
-      amount: transferAmount,
-      currency: "usd",
-      destination,
-      source_transaction: task.stripe_charge_id,
-      metadata: {
-        task_id: taskId,
-        platform_fee_percent: String(feePct),
-      },
-    });
-
-    const now = new Date().toISOString();
-    const { data: updated, error } = await admin
-      .from("tasks")
-      .update({
-        status: "approved",
-        stripe_transfer_id: transfer.id,
-        updated_at: now,
-      })
-      .eq("id", taskId)
-      .select("*")
-      .single();
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    return NextResponse.json({
-      task: updated as TaskRow,
-      transfer: {
-        id: transfer.id,
-        amount_cents: transferAmount,
-        destination,
-        platform_kept_cents: row.budget - transferAmount,
-      },
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Stripe transfer failed";
-    return NextResponse.json({ error: msg }, { status: 502 });
-  }
+  return NextResponse.json({
+    task: result.data.task,
+    transfer: result.data.transfer,
+  });
 }

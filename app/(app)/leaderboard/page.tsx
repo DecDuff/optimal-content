@@ -6,7 +6,29 @@ import { motion } from "framer-motion";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { usePostJobModal } from "@/contexts/post-job-modal-context";
 import { useSessionProfile } from "@/hooks/use-session-profile";
-import type { LeaderboardRow } from "@/types/leaderboard";
+import type { LeaderboardRow, LeaderboardTier } from "@/types/leaderboard";
+
+function TierBadge({ tier }: { tier: LeaderboardTier }) {
+  const styles: Record<LeaderboardTier, string> = {
+    new: "border-zinc-600/50 bg-zinc-500/10 text-zinc-400",
+    bronze: "border-amber-700/45 bg-amber-900/25 text-amber-200/95",
+    silver: "border-slate-400/45 bg-slate-400/10 text-slate-200",
+    gold: "border-amber-400/55 bg-gradient-to-r from-amber-500/20 to-yellow-600/15 text-amber-100",
+  };
+  const labels: Record<LeaderboardTier, string> = {
+    new: "New",
+    bronze: "Bronze",
+    silver: "Silver",
+    gold: "Gold",
+  };
+  return (
+    <span
+      className={`ml-2 inline-flex rounded-md border px-1.5 py-0.5 font-sans text-[9px] font-bold uppercase tracking-[0.08em] ${styles[tier]}`}
+    >
+      {labels[tier]}
+    </span>
+  );
+}
 
 export default function LeaderboardPage() {
   const { profile } = useSessionProfile();
@@ -14,7 +36,7 @@ export default function LeaderboardPage() {
   const isCreator = profile?.role === "creator";
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [myRank, setMyRank] = useState<number | null>(null);
-  const [myClaimCount, setMyClaimCount] = useState(0);
+  const [myCompleted, setMyCompleted] = useState(0);
   const [isTopOptimizer, setIsTopOptimizer] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -25,7 +47,7 @@ export default function LeaderboardPage() {
       if (res.ok) {
         setRows(data.rows ?? []);
         setMyRank(data.my_rank ?? null);
-        setMyClaimCount(data.my_claim_count ?? 0);
+        setMyCompleted(data.my_completed_count ?? 0);
         setIsTopOptimizer(Boolean(data.is_top_optimizer));
       }
       setLoading(false);
@@ -50,15 +72,24 @@ export default function LeaderboardPage() {
         ) : null}
       </div>
       <p className="mt-2 max-w-lg text-xs text-zinc-500">
-        Ranked by claimed tasks (all statuses after claim). Your session:{" "}
-        <span className="font-mono text-zinc-300 tabular-nums">{myClaimCount}</span> claimed
-        {myRank !== null ? (
+        Public rank by successfully completed jobs (approved deliveries). Tiers: Bronze 1–10 · Silver 11–50 · Gold
+        51+.
+        {profile ? (
           <>
             {" "}
-            · Rank <span className="font-mono text-zinc-300 tabular-nums">#{myRank}</span>
+            Your row:{" "}
+            <span className="font-mono text-zinc-300 tabular-nums">{myCompleted}</span> completed
+            {myRank !== null ? (
+              <>
+                {" "}
+                · Rank <span className="font-mono text-zinc-300 tabular-nums">#{myRank}</span>
+              </>
+            ) : null}
+            .
           </>
-        ) : null}
-        .
+        ) : (
+          <> Sign in to see your rank.</>
+        )}
       </p>
 
       {loading ? (
@@ -74,12 +105,13 @@ export default function LeaderboardPage() {
         </div>
       ) : (
         <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-800/50">
-          <table className="w-full min-w-[560px] border-collapse text-left text-xs">
+          <table className="w-full min-w-[640px] border-collapse text-left text-xs">
             <thead>
               <tr className="border-b border-zinc-800/50 bg-zinc-950/80 text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-500 backdrop-blur-sm">
                 <th className="px-3 py-2 font-medium">Rank</th>
                 <th className="px-3 py-2 font-medium">Optimizer</th>
-                <th className="px-3 py-2 font-medium text-right">Claims</th>
+                <th className="px-3 py-2 font-medium text-center">Tier</th>
+                <th className="px-3 py-2 font-medium text-right">Done</th>
                 {isCreator ? (
                   <th className="px-3 py-2 font-medium text-right">Request</th>
                 ) : null}
@@ -89,10 +121,10 @@ export default function LeaderboardPage() {
               {rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={isCreator ? 4 : 3}
+                    colSpan={isCreator ? 5 : 4}
                     className="px-3 py-8 text-center font-sans text-zinc-500"
                   >
-                    No claims yet.
+                    No optimizers yet.
                   </td>
                 </tr>
               ) : (
@@ -119,7 +151,12 @@ export default function LeaderboardPage() {
                         </span>
                       ) : null}
                     </td>
-                    <td className="px-3 py-2.5 align-middle text-right tabular-nums text-white">{row.claims}</td>
+                    <td className="px-3 py-2.5 align-middle text-center">
+                      <TierBadge tier={row.tier} />
+                    </td>
+                    <td className="px-3 py-2.5 align-middle text-right tabular-nums text-white">
+                      {row.completed_tasks}
+                    </td>
                     {isCreator ? (
                       <td className="px-3 py-2.5 align-middle text-right">
                         {profile?.id === row.optimizer_id ? (

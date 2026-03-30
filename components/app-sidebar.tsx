@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Gavel,
   LayoutList,
   LogOut,
   Menu,
@@ -46,12 +47,13 @@ export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { openPostJob } = usePostJobModal();
-  const { profile, loading } = useSessionProfile();
+  const { profile, loading, canAccessAdmin } = useSessionProfile();
   const { unreadTaskIds } = useUnreadTaskMessages();
   const [mobileOpen, setMobileOpen] = useState(false);
   const hasUnreadChats = unreadTaskIds.size > 0;
   const isCreator = profile?.role === "creator";
   const isOptimizer = profile?.role === "optimizer";
+  const isStaff = canAccessAdmin;
 
   async function handleLogout() {
     const supabase = createSupabaseBrowserClient();
@@ -153,6 +155,23 @@ export function AppSidebar() {
             </Link>
           );
         })}
+
+        {isStaff ? (
+          <Link
+            href="/admin/disputes"
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition ${
+              pathname.startsWith("/admin")
+                ? "border border-amber-500/35 bg-amber-500/10 text-amber-100"
+                : "border border-transparent text-zinc-400 hover:bg-white/[0.04] hover:text-amber-100/90"
+            }`}
+          >
+            <IconWrap>
+              <Gavel className="h-4 w-4 text-amber-500/80" strokeWidth={STROKE} aria-hidden />
+            </IconWrap>
+            Disputes (admin)
+          </Link>
+        ) : null}
       </nav>
 
       <div className="border-t border-zinc-800/50 p-2">
