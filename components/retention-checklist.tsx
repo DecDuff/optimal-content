@@ -15,13 +15,14 @@ const ITEMS: { key: keyof ChecklistState; label: string }[] = [
 type Props = {
   checklist: ChecklistState;
   disabled?: boolean;
-  onChange: (next: ChecklistState) => void;
+  /** Toggle one item — parent owns state (avoids stale checklist snapshots in the parent). */
+  onToggle: (key: keyof ChecklistState) => void;
 };
 
-export function RetentionChecklist({ checklist, disabled, onChange }: Props) {
+export function RetentionChecklist({ checklist, disabled, onToggle }: Props) {
   const toggle = (key: keyof ChecklistState) => {
     if (disabled) return;
-    onChange({ ...checklist, [key]: !checklist[key] });
+    onToggle(key);
   };
 
   return (

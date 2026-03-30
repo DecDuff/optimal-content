@@ -17,6 +17,8 @@ function fmtMoney(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
+const CHECKLIST_KEYS = ["1", "2", "3", "4", "5"] as const satisfies readonly (keyof ChecklistState)[];
+
 const EMPTY_CHECKLIST: ChecklistState = {
   "1": false,
   "2": false,
@@ -26,14 +28,17 @@ const EMPTY_CHECKLIST: ChecklistState = {
 };
 
 function normalizeChecklist(raw: unknown): ChecklistState {
-  const o = raw && typeof raw === "object" ? (raw as Record<string, boolean>) : {};
-  return {
-    "1": Boolean(o["1"]),
-    "2": Boolean(o["2"]),
-    "3": Boolean(o["3"]),
-    "4": Boolean(o["4"]),
-    "5": Boolean(o["5"]),
-  };
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const next: ChecklistState = { ...EMPTY_CHECKLIST };
+  for (const k of CHECKLIST_KEYS) {
+    const v = o[k] ?? o[String(k)];
+    next[k] = v === true || v === "true" || v === 1 || v === "1";
+  }
+  return next;
+}
+
+function countChecked(state: ChecklistState): number {
+  return CHECKLIST_KEYS.filter((k) => state[k]).length;
 }
 
 export default function TaskWorkspacePage() {
@@ -50,47 +55,65 @@ export default function TaskWorkspacePage() {
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const refreshTask = useCallback(async () => {
-    if (!id) return;
-    const res = await fetch(`/api/tasks/${id}`, {
-      cache: "no-store",
-      headers: { "Cache-Control": "no-store" },
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setLoadError(data.error ?? "Failed to load");
-      setTask(null);
-      return;
-    }
-    setLoadError(null);
-    const t = data.task as TaskRow;
-    setTask(t);
-    setChecklist(normalizeChecklist(t.checklist));
-    if (t.submission_url) setDeliverableUrl(t.submission_url);
+  const persistChecklist = useCallback((next: ChecklistState) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      await fetch(`/api/tasks/${id}/checklist`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checklist: next }),
+      });
+    }, 450);
   }, [id]);
 
-  useEffect(() => {
-    refreshTask();
-  }, [refreshTask]);
-
-  const persistChecklist = useCallback(
-    (next: ChecklistState) => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(async () => {
-        await fetch(`/api/tasks/${id}/checklist`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ checklist: next }),
+  const refreshTask = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!id) return;
+      try {
+        const res = await fetch(`/api/tasks/${id}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-store" },
+          signal,
         });
-      }, 450);
+        const data = await res.json();
+        if (!res.ok) {
+          setLoadError(data.error ?? "Failed to load");
+          setTask(null);
+          return;
+        }
+        setLoadError(null);
+        const t = data.task as TaskRow;
+        setTask(t);
+        setChecklist(normalizeChecklist(t.checklist));
+        if (t.submission_url) setDeliverableUrl(t.submission_url);
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return;
+        setLoadError(e instanceof Error ? e.message : "Failed to load");
+        setTask(null);
+      }
     },
     [id]
   );
 
-  const onChecklistChange = (next: ChecklistState) => {
-    setChecklist(next);
-    persistChecklist(next);
-  };
+  useEffect(() => {
+    const ac = new AbortController();
+    void refreshTask(ac.signal);
+    return () => {
+      ac.abort();
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+    };
+  }, [refreshTask]);
+
+  const onChecklistToggle = useCallback(
+    (key: keyof ChecklistState) => {
+      setChecklist((prev) => {
+        const next = { ...prev, [key]: !prev[key] };
+        persistChecklist(next);
+        return next;
+      });
+    },
+    [persistChecklist]
+  );
 
   async function claim() {
     setBusy("claim");
@@ -102,7 +125,9 @@ export default function TaskWorkspacePage() {
         return;
       }
       toast.success("Job claimed — 24h window started.");
-      setTask(data.task as TaskRow);
+      const claimed = data.task as TaskRow;
+      setTask(claimed);
+      setChecklist(normalizeChecklist(claimed.checklist));
       router.refresh();
     } finally {
       setBusy(null);
@@ -183,7 +208,8 @@ export default function TaskWorkspacePage() {
     task.status === "open" && profile?.role === "optimizer" && !isCreator && funded;
   const showClaimTeaser =
     task.status === "open" && profile?.role === "optimizer" && !isCreator && !funded;
-  const allChecklistDone = ["1", "2", "3", "4", "5"].every((k) => checklist[k as keyof ChecklistState]);
+  const checkedCount = countChecked(checklist);
+  const allChecklistDone = checkedCount === CHECKLIST_KEYS.length;
   const countdownActive =
     task.status === "claimed" || task.status === "submitted";
 
@@ -328,7 +354,7 @@ export default function TaskWorkspacePage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.08 }}
             >
-              <RetentionChecklist checklist={checklist} onChange={onChecklistChange} />
+              <RetentionChecklist checklist={checklist} onToggle={onChecklistToggle} />
               <div className="mt-5">
                 <label className="text-xs font-medium text-slate-400">Deliverable URL</label>
                 <input
@@ -346,7 +372,9 @@ export default function TaskWorkspacePage() {
                 type="button"
                 whileHover={{ scale: busy ? 1 : 1.02 }}
                 whileTap={{ scale: busy ? 1 : 0.98 }}
-                disabled={!allChecklistDone || busy !== null || !deliverableUrl.trim()}
+                disabled={
+                  busy !== null || checkedCount < CHECKLIST_KEYS.length || !deliverableUrl.trim()
+                }
                 onClick={submitWork}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-600/90 to-cyan-600/80 py-3 text-sm font-semibold text-white shadow-[0_0_28px_-8px_rgba(52,211,153,0.35)] disabled:cursor-not-allowed disabled:opacity-35"
               >
