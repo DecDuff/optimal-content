@@ -32,6 +32,7 @@ export type TaskRow = {
   stripe_charge_id: string | null;
   stripe_transfer_id: string | null;
   submission_url: string | null;
+  appeal_reason: string | null;
   checklist: ChecklistState;
   created_at: string;
   updated_at: string;

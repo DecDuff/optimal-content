@@ -39,6 +39,36 @@ export async function POST(_request: Request, context: Params) {
     return NextResponse.json({ error: "Transfer amount too small" }, { status: 400 });
   }
 
+  /** Local / mock charges are not real Stripe objects — skip transfer and mark approved in DB. */
+  const chargeId = task.stripe_charge_id as string;
+  if (chargeId.startsWith("ch_fake") || chargeId.startsWith("ch_dev_")) {
+    const now = new Date().toISOString();
+    const mockTransferId = `tr_mock_${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`;
+    const { data: updated, error } = await admin
+      .from("tasks")
+      .update({
+        status: "approved",
+        stripe_transfer_id: mockTransferId,
+        updated_at: now,
+      })
+      .eq("id", taskId)
+      .select("*")
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    return NextResponse.json({
+      task: updated as TaskRow,
+      transfer: {
+        id: mockTransferId,
+        amount_cents: transferAmount,
+        destination: optimizerStripeAccountId(),
+        platform_kept_cents: row.budget - transferAmount,
+        mock: true,
+      },
+    });
+  }
+
   const stripe = getStripe();
   const destination = optimizerStripeAccountId();
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
@@ -41,6 +41,89 @@ function countChecked(state: ChecklistState): number {
   return CHECKLIST_KEYS.filter((k) => state[k]).length;
 }
 
+const PLATFORM_LABELS: Record<string, string> = {
+  youtube_longform: "YouTube Longform",
+  youtube_shorts: "YouTube Shorts",
+  tiktok: "TikTok",
+  instagram_reels: "Instagram Reels",
+};
+
+function formatTargetPlatform(raw: string | null | undefined): string | null {
+  if (!raw?.trim()) return null;
+  return (
+    PLATFORM_LABELS[raw] ??
+    raw.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
+function complexityUi(level: string | null | undefined): { label: string; dot: string; text: string } {
+  const l = (level ?? "").toLowerCase();
+  if (l === "beginner") {
+    return { label: "Beginner", dot: "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]", text: "text-emerald-200/90" };
+  }
+  if (l === "expert") {
+    return { label: "Expert", dot: "bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.45)]", text: "text-red-200/85" };
+  }
+  if (l === "intermediate") {
+    return { label: "Intermediate", dot: "bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.45)]", text: "text-amber-200/90" };
+  }
+  return { label: level || "Level", dot: "bg-zinc-500", text: "text-zinc-400" };
+}
+
+function TaskWorkspaceMetaBadges({ task }: { task: TaskRow }) {
+  const platform = formatTargetPlatform(task.target_platform);
+  const cx = complexityUi(task.complexity_level);
+  const tags = tasktags(task.tags);
+  const hasComplexity = Boolean(task.complexity_level?.trim());
+  const showRow = platform || hasComplexity || tags.length > 0;
+  if (!showRow) {
+    return (
+      <div className="border-b border-white/[0.06] pb-5">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Brief meta</p>
+        <p className="mt-2 text-xs text-zinc-500">No brief tags were set on this job.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 border-b border-white/[0.06] pb-5">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Brief meta</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {platform ? (
+          <span className="inline-flex items-center rounded-full border border-cyan-500/35 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium text-cyan-100/95 backdrop-blur-md">
+            {platform}
+          </span>
+        ) : null}
+        {hasComplexity ? (
+        <span
+          className={`inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-medium backdrop-blur-md ${cx.text}`}
+        >
+          <span className={`h-2 w-2 rounded-full ${cx.dot}`} aria-hidden />
+          {cx.label}
+        </span>
+        ) : null}
+      </div>
+      {tags.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-violet-500/30 bg-violet-500/[0.08] px-2.5 py-1 text-[10px] font-medium text-violet-100/90 backdrop-blur-md"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function tasktags(raw: string[] | null | undefined): string[] {
+  if (!raw || !Array.isArray(raw)) return [];
+  return raw.map((t) => String(t).trim()).filter(Boolean);
+}
+
 export default function TaskWorkspacePage() {
   const params = useParams();
   const router = useRouter();
@@ -52,6 +135,9 @@ export default function TaskWorkspacePage() {
   const [checklist, setChecklist] = useState<ChecklistState>(EMPTY_CHECKLIST);
   const [deliverableUrl, setDeliverableUrl] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [appealOpen, setAppealOpen] = useState(false);
+  const [appealReason, setAppealReason] = useState("");
+  const [busyAppeal, setBusyAppeal] = useState(false);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -180,6 +266,34 @@ export default function TaskWorkspacePage() {
     }
   }
 
+  async function submitAppeal() {
+    const r = appealReason.trim();
+    if (r.length < 8) {
+      toast.error("Please write a clear reason (at least 8 characters).");
+      return;
+    }
+    setBusyAppeal(true);
+    try {
+      const res = await fetch(`/api/tasks/${id}/appeal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: r }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error ?? "Appeal failed");
+        return;
+      }
+      toast.success("Appeal submitted. The task is now disputed.");
+      setTask(data.task as TaskRow);
+      setAppealOpen(false);
+      setAppealReason("");
+      router.refresh();
+    } finally {
+      setBusyAppeal(false);
+    }
+  }
+
   async function approve() {
     setBusy("approve");
     try {
@@ -236,6 +350,7 @@ export default function TaskWorkspacePage() {
   const statusLabel = (s: TaskStatus) => s.replace("_", " ");
 
   return (
+    <>
     <div className="min-h-screen px-6 py-8">
       <AppBreadcrumb
         items={[
@@ -283,7 +398,10 @@ export default function TaskWorkspacePage() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel mt-8 p-5"
         >
-          <ClaimCountdown claimedAtIso={task.claimed_at} active={countdownActive} />
+          <TaskWorkspaceMetaBadges task={task} />
+          <div className="mt-5">
+            <ClaimCountdown claimedAtIso={task.claimed_at} active={countdownActive} />
+          </div>
         </motion.div>
       ) : null}
 
@@ -336,25 +454,40 @@ export default function TaskWorkspacePage() {
                 The optimizer submitted deliverables. Approve to route their share to the connected Stripe
                 account (test mode).
               </p>
-              {task.submission_url ? (
-                <a
-                  href={task.submission_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 inline-flex text-sm font-medium text-cyan-400 transition hover:text-cyan-300"
-                >
-                  Open deliverable link →
-                </a>
-              ) : null}
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.98 }}
-                disabled={busy !== null}
-                onClick={approve}
-                className="mt-4 rounded-lg border border-white/15 bg-white/[0.08] px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/[0.12] disabled:opacity-50"
-              >
-                {busy === "approve" ? "Processing…" : "Approve & release payout"}
-              </motion.button>
+              <div className="mt-5 flex flex-col gap-5">
+                {task.submission_url ? (
+                  <a
+                    href={task.submission_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex w-fit text-sm font-medium text-cyan-400 transition hover:text-cyan-300"
+                  >
+                    Open deliverable link →
+                  </a>
+                ) : (
+                  <p className="text-sm text-zinc-500">No deliverable URL was provided.</p>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.98 }}
+                    disabled={busy !== null || busyAppeal}
+                    onClick={approve}
+                    className="rounded-lg border border-white/15 bg-white/[0.08] px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/[0.12] disabled:opacity-50"
+                  >
+                    {busy === "approve" ? "Processing…" : "Approve & release payout"}
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.98 }}
+                    disabled={busy !== null || busyAppeal}
+                    onClick={() => setAppealOpen(true)}
+                    className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-5 py-2.5 text-sm font-semibold text-amber-100/95 backdrop-blur-sm transition hover:bg-amber-500/15 disabled:opacity-50"
+                  >
+                    Appeal
+                  </motion.button>
+                </div>
+              </div>
             </div>
           ) : null}
 
@@ -363,7 +496,15 @@ export default function TaskWorkspacePage() {
           ) : null}
 
           {task.status === "disputed" ? (
-            <p className="text-sm text-amber-200/90">This task is marked disputed.</p>
+            <div className="glass-panel border-amber-500/20 p-5">
+              <p className="text-sm text-amber-200/90">This task is marked disputed.</p>
+              {task.appeal_reason ? (
+                <p className="mt-3 text-sm leading-relaxed text-zinc-300">
+                  <span className="font-medium text-zinc-400">Creator note: </span>
+                  {task.appeal_reason}
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
 
@@ -410,5 +551,79 @@ export default function TaskWorkspacePage() {
         </div>
       </div>
     </div>
+
+    <AnimatePresence>
+      {appealOpen ? (
+        <motion.div
+          key="appeal-modal"
+          className="fixed inset-0 z-[180] flex items-center justify-center p-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <button
+            type="button"
+            aria-label="Close appeal dialog"
+            disabled={busyAppeal}
+            className="absolute inset-0 bg-[#020617]/80 backdrop-blur-md"
+            onClick={() => {
+              if (!busyAppeal) setAppealOpen(false);
+            }}
+          />
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="appeal-title"
+            initial={{ opacity: 0, scale: 0.94, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: 12 }}
+            transition={{ type: "spring", stiffness: 380, damping: 28 }}
+            className="glass-panel relative z-[1] w-full max-w-md border border-white/10 p-6 shadow-[0_0_60px_-18px_rgba(251,191,36,0.35)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="appeal-title" className="text-lg font-semibold tracking-tight text-white">
+              Appeal this submission
+            </h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Explain what needs to change. The task will move to disputed for follow-up.
+            </p>
+            <label className="mt-5 block text-xs font-medium text-slate-400">Reason for appeal</label>
+            <textarea
+              value={appealReason}
+              onChange={(e) => setAppealReason(e.target.value)}
+              rows={5}
+              maxLength={4000}
+              disabled={busyAppeal}
+              className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-slate-950/50 px-4 py-3 text-sm text-slate-200 outline-none backdrop-blur-md focus:border-amber-500/40"
+              placeholder="Be specific about pacing, deliverables, or quality issues…"
+            />
+            <p className="mt-1 text-[10px] text-slate-600">{appealReason.trim().length}/4000 · min 8 characters</p>
+            <div className="mt-5 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                disabled={busyAppeal}
+                onClick={() => {
+                  setAppealOpen(false);
+                  setAppealReason("");
+                }}
+                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-slate-400 backdrop-blur-sm disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busyAppeal}
+                onClick={submitAppeal}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-500/45 bg-gradient-to-r from-amber-600/90 to-orange-600/85 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_30px_-10px_rgba(245,158,11,0.45)] disabled:opacity-50"
+              >
+                {busyAppeal ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {busyAppeal ? "Submitting…" : "Confirm appeal"}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
+    </>
   );
 }
