@@ -34,6 +34,12 @@ export type TaskRow = {
   id: string;
   creator_id: string;
   optimizer_id: string | null;
+  /** Direct invite: hidden from public feed until declined or lifecycle changes. */
+  is_private: boolean;
+  /** While set (with is_private), only this optimizer may claim the funded open task. */
+  requested_optimizer_id: string | null;
+  /** Direct-request countdown; cleared when declined or after accept if desired. */
+  expires_at: string | null;
   title: string;
   description: string;
   video_url: string;

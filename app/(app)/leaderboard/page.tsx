@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { motion } from "framer-motion";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
+import { usePostJobModal } from "@/contexts/post-job-modal-context";
+import { useSessionProfile } from "@/hooks/use-session-profile";
 import type { LeaderboardRow } from "@/types/leaderboard";
 
 export default function LeaderboardPage() {
+  const { profile } = useSessionProfile();
+  const { openDirectRequest } = usePostJobModal();
+  const isCreator = profile?.role === "creator";
   const [rows, setRows] = useState<LeaderboardRow[]>([]);
   const [myRank, setMyRank] = useState<number | null>(null);
   const [myClaimCount, setMyClaimCount] = useState(0);
@@ -67,18 +74,24 @@ export default function LeaderboardPage() {
         </div>
       ) : (
         <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-800/50">
-          <table className="w-full min-w-[480px] border-collapse text-left text-xs">
+          <table className="w-full min-w-[560px] border-collapse text-left text-xs">
             <thead>
               <tr className="border-b border-zinc-800/50 bg-zinc-950/80 text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-500 backdrop-blur-sm">
                 <th className="px-3 py-2 font-medium">Rank</th>
                 <th className="px-3 py-2 font-medium">Optimizer</th>
                 <th className="px-3 py-2 font-medium text-right">Claims</th>
+                {isCreator ? (
+                  <th className="px-3 py-2 font-medium text-right">Request</th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="font-mono text-[11px] text-zinc-300">
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-3 py-8 text-center font-sans text-zinc-500">
+                  <td
+                    colSpan={isCreator ? 4 : 3}
+                    className="px-3 py-8 text-center font-sans text-zinc-500"
+                  >
                     No claims yet.
                   </td>
                 </tr>
@@ -94,7 +107,12 @@ export default function LeaderboardPage() {
                   >
                     <td className="px-3 py-2.5 align-middle tabular-nums text-zinc-400">{row.rank}</td>
                     <td className="px-3 py-2.5 align-middle">
-                      <span className="font-sans text-xs text-zinc-200">{row.display_name}</span>
+                      <Link
+                        href={`/optimizers/${row.optimizer_id}`}
+                        className="font-sans text-xs text-zinc-200 underline-offset-2 hover:text-violet-300 hover:underline"
+                      >
+                        {row.display_name}
+                      </Link>
                       {row.is_current_user && row.rank === 1 ? (
                         <span className="ml-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#2E5BFF]">
                           Top
@@ -102,6 +120,27 @@ export default function LeaderboardPage() {
                       ) : null}
                     </td>
                     <td className="px-3 py-2.5 align-middle text-right tabular-nums text-white">{row.claims}</td>
+                    {isCreator ? (
+                      <td className="px-3 py-2.5 align-middle text-right">
+                        {profile?.id === row.optimizer_id ? (
+                          <span className="font-sans text-[10px] text-zinc-600">—</span>
+                        ) : (
+                          <motion.button
+                            type="button"
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() =>
+                              openDirectRequest({
+                                optimizerId: row.optimizer_id,
+                                displayName: row.display_name || "Optimizer",
+                              })
+                            }
+                            className="rounded-lg border border-indigo-500/45 bg-indigo-500/10 px-2.5 py-1 font-sans text-[10px] font-semibold uppercase tracking-[0.06em] text-indigo-200 transition hover:bg-indigo-500/20"
+                          >
+                            Request
+                          </motion.button>
+                        )}
+                      </td>
+                    ) : null}
                   </tr>
                 ))
               )}

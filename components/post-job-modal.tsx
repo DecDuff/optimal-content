@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
+import type { DirectRequestTarget } from "@/types/direct-request";
 import { isValidYoutubeOrVideoUrl } from "@/lib/validation";
 
 const DESC_MAX = 8_000;
@@ -31,9 +32,10 @@ type AiSuggestion = {
 type Props = {
   open: boolean;
   onClose: () => void;
+  directRequest: DirectRequestTarget | null;
 };
 
-export function PostJobModal({ open, onClose }: Props) {
+export function PostJobModal({ open, onClose, directRequest }: Props) {
   const [mounted, setMounted] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -219,6 +221,9 @@ export function PostJobModal({ open, onClose }: Props) {
           tags: tagsForApi,
           complexity_level: complexityLevel,
           target_platform: targetPlatform,
+          ...(directRequest
+            ? { requested_optimizer_id: directRequest.optimizerId }
+            : {}),
         }),
       });
       const data = await res.json();
@@ -289,13 +294,17 @@ export function PostJobModal({ open, onClose }: Props) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-400/90">
-                  New brief
+                  {directRequest ? "Direct request" : "New brief"}
                 </p>
                 <h2 id="post-job-title" className="mt-1 text-xl font-semibold tracking-tight text-white">
-                  Post a job
+                  {directRequest
+                    ? `Request ${directRequest.displayName}`
+                    : "Post a job"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-400">
-                  Escrow budget with Stripe. Job appears on the feed after payment clears.
+                  {directRequest
+                    ? "Only this optimizer can accept for 24 hours after you pay. It stays off the public feed until they decline."
+                    : "Escrow budget with Stripe. Job appears on the feed after payment clears."}
                 </p>
               </div>
               <motion.button
@@ -581,7 +590,11 @@ export function PostJobModal({ open, onClose }: Props) {
                   className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border border-indigo-500/50 bg-gradient-to-r from-indigo-600 to-violet-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_40px_-10px_rgba(99,102,241,0.55)] touch-manipulation disabled:pointer-events-none disabled:opacity-55"
                 >
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                  {loading ? "Redirecting…" : "Post task & pay with Stripe"}
+                  {loading
+                    ? "Redirecting…"
+                    : directRequest
+                      ? "Send request & pay with Stripe"
+                      : "Post task & pay with Stripe"}
                 </motion.button>
               </div>
             </form>

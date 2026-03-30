@@ -8,6 +8,7 @@ export async function fetchOpenFeedTasks(userId: string): Promise<{ tasks: TaskR
     .from("tasks")
     .select("*")
     .eq("status", "open")
+    .eq("is_private", false)
     .neq("creator_id", userId)
     .order("created_at", { ascending: false });
 

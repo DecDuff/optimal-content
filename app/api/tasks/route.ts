@@ -43,11 +43,34 @@ export async function GET(request: Request) {
       .from("tasks")
       .select("*")
       .eq("status", "open")
+      .eq("is_private", false)
       .neq("creator_id", user.id)
       .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+    return NextResponse.json({ tasks: (data ?? []) as TaskRow[] });
+  }
+
+  if (scope === "direct_requests") {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!profile || profile.role !== "optimizer") {
+      return NextResponse.json({ error: "Only optimizers can load direct requests" }, { status: 403 });
+    }
+
+    const { data, error } = await admin
+      .from("tasks")
+      .select("*")
+      .eq("status", "open")
+      .eq("is_private", true)
+      .eq("requested_optimizer_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ tasks: (data ?? []) as TaskRow[] });
   }
 
@@ -75,6 +98,8 @@ type CreateBody = {
   tags: string[];
   complexity_level: ComplexityOption;
   target_platform: TargetPlatformOption;
+  /** When set, creates a private direct request for this optimizer (must be role optimizer, not self). */
+  requested_optimizer_id?: string | null;
 };
 
 function normalizeTaskTag(raw: string): string | null {
@@ -130,7 +155,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
     }
 
-    const { title, description, video_url, budget, tags, complexity_level, target_platform } = body;
+    const {
+      title,
+      description,
+      video_url,
+      budget,
+      tags,
+      complexity_level,
+      target_platform,
+      requested_optimizer_id: requestedRaw,
+    } = body;
     const t = title?.trim() ?? "";
     const d = description?.trim() ?? "";
     const v = video_url?.trim() ?? "";
@@ -171,6 +205,43 @@ export async function POST(request: Request) {
       );
     }
 
+    let requestedOptimizerId: string | null = null;
+    let isPrivate = false;
+    let expiresAt: string | null = null;
+
+    const reqTrim =
+      typeof requestedRaw === "string" ? requestedRaw.trim() : requestedRaw === null ? "" : "";
+    if (reqTrim) {
+      const uuidRe =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRe.test(reqTrim)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid requested_optimizer_id" },
+          { status: 400 }
+        );
+      }
+      if (reqTrim === user.id) {
+        return NextResponse.json(
+          { success: false, error: "You cannot direct-request yourself" },
+          { status: 400 }
+        );
+      }
+      const { data: target } = await admin
+        .from("profiles")
+        .select("id, role")
+        .eq("id", reqTrim)
+        .maybeSingle();
+      if (!target || target.role !== "optimizer") {
+        return NextResponse.json(
+          { success: false, error: "Requested profile must be an optimizer" },
+          { status: 400 }
+        );
+      }
+      requestedOptimizerId = reqTrim;
+      isPrivate = true;
+      expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    }
+
     const { data: task, error } = await admin
       .from("tasks")
       .insert({
@@ -183,6 +254,9 @@ export async function POST(request: Request) {
         complexity_level,
         target_platform,
         status: "open" as const,
+        is_private: isPrivate,
+        requested_optimizer_id: requestedOptimizerId,
+        expires_at: expiresAt,
       })
       .select("*")
       .single();

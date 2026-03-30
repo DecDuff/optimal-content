@@ -21,6 +21,18 @@ function fmtMoney(cents: number) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 }
 
+function formatDirectRequestExpiry(iso: string | null): string {
+  if (!iso) return "No expiry set.";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "No expiry set.";
+  if (t < Date.now()) return "This request has expired.";
+  const d = new Date(t);
+  return `Expires ${d.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })}`;
+}
+
 function statusStyle(s: TaskStatus): string {
   switch (s) {
     case "open":
@@ -47,22 +59,26 @@ function DashboardContent() {
   const { profile, loading: profileLoading } = useSessionProfile();
   const { unreadTaskIds } = useUnreadTaskMessages();
   const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [directRequests, setDirectRequests] = useState<TaskRow[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(true);
+  const [loadingDirect, setLoadingDirect] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
   const [simulatingId, setSimulatingId] = useState<string | null>(null);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
 
   const isDev = process.env.NODE_ENV === "development";
 
   useEffect(() => {
     if (!profile) {
       setLoadingTasks(false);
+      setLoadingDirect(false);
       return;
     }
     let cancelled = false;
     (async () => {
       const scope = profile.role === "creator" ? "mine" : "optimizer";
-      // 👇 ADDED CACHE: 'NO-STORE' HERE
-      const res = await fetch(`/api/tasks?scope=${scope}`, { cache: 'no-store' });
+      const res = await fetch(`/api/tasks?scope=${scope}`, { cache: "no-store" });
       const data = await res.json();
       if (!cancelled && res.ok) setTasks(data.tasks ?? []);
       if (!cancelled) setLoadingTasks(false);
@@ -71,6 +87,71 @@ function DashboardContent() {
       cancelled = true;
     };
   }, [profile]);
+
+  useEffect(() => {
+    if (!profile || profile.role !== "optimizer") {
+      setDirectRequests([]);
+      setLoadingDirect(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingDirect(true);
+    (async () => {
+      const res = await fetch(`/api/tasks?scope=direct_requests`, { cache: "no-store" });
+      const data = await res.json();
+      if (!cancelled && res.ok) setDirectRequests(data.tasks ?? []);
+      if (!cancelled) setLoadingDirect(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile]);
+
+  async function refreshOptimizerLists() {
+    if (!profile || profile.role !== "optimizer") return;
+    const [main, direct] = await Promise.all([
+      fetch(`/api/tasks?scope=optimizer`, { cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/tasks?scope=direct_requests`, { cache: "no-store" }).then((r) => r.json()),
+    ]);
+    setTasks((main.tasks ?? []) as TaskRow[]);
+    setDirectRequests((direct.tasks ?? []) as TaskRow[]);
+  }
+
+  async function acceptDirectRequest(taskId: string) {
+    setAcceptingId(taskId);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/claim`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not accept");
+        return;
+      }
+      toast.success("Task accepted — you're on the clock.");
+      await refreshOptimizerLists();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setAcceptingId(null);
+    }
+  }
+
+  async function declineDirectRequest(taskId: string) {
+    setDecliningId(taskId);
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/decline-direct`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not decline");
+        return;
+      }
+      toast.success("Declined — the job is now on the public feed.");
+      await refreshOptimizerLists();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setDecliningId(null);
+    }
+  }
 
   async function resumeCheckout(taskId: string) {
     setPayingId(taskId);
@@ -157,6 +238,95 @@ function DashboardContent() {
           className="mt-10 space-y-8"
         >
           <OptimizerWalletCard />
+          <section aria-labelledby="direct-requests-heading">
+            <h2
+              id="direct-requests-heading"
+              className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200/90"
+            >
+              Direct requests
+            </h2>
+            <p className="mt-1 max-w-lg text-xs text-slate-500">
+              Creators who picked you specifically. Accept after they pay, or decline to release the job to the public feed.
+            </p>
+            {loadingDirect ? (
+              <div className="mt-4 h-20 animate-pulse rounded-lg border border-white/5 bg-white/[0.02]" />
+            ) : directRequests.length === 0 ? (
+              <p className="glass-panel mt-4 border border-dashed border-white/10 p-6 text-center text-sm text-slate-500">
+                No direct requests right now.
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-3">
+                {directRequests.map((t) => {
+                  const funded = Boolean(t.stripe_charge_id);
+                  const expired =
+                    t.expires_at && new Date(t.expires_at).getTime() < Date.now();
+                  return (
+                    <li
+                      key={t.id}
+                      className="glass-panel flex flex-col gap-3 border-amber-500/20 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          href={`/tasks/${t.id}`}
+                          className="text-sm font-medium text-white hover:text-amber-200/95"
+                        >
+                          {t.title}
+                        </Link>
+                        <p className="mt-1.5 text-xs text-amber-100/70">
+                          {formatDirectRequestExpiry(t.expires_at)}
+                        </p>
+                        {!funded ? (
+                          <p className="mt-1 text-xs text-slate-500">
+                            Awaiting creator payment — you can accept once the job is funded.
+                          </p>
+                        ) : null}
+                        {expired ? (
+                          <p className="mt-1 text-xs text-rose-400/90">
+                            Expired requests cannot be accepted from here.
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          disabled={
+                            acceptingId === t.id ||
+                            decliningId === t.id ||
+                            !funded ||
+                            Boolean(expired)
+                          }
+                          onClick={() => acceptDirectRequest(t.id)}
+                          className="rounded-lg border border-emerald-500/45 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-200/95 disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          {acceptingId === t.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            "Accept task"
+                          )}
+                        </motion.button>
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          disabled={acceptingId === t.id || decliningId === t.id}
+                          onClick={() => declineDirectRequest(t.id)}
+                          className="rounded-lg border border-white/15 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-300 disabled:opacity-45"
+                        >
+                          {decliningId === t.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            "Decline"
+                          )}
+                        </motion.button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
           <Link
             href="/feed"
             className="inline-flex items-center gap-2 rounded-xl border border-indigo-500/45 bg-gradient-to-r from-indigo-600/25 to-violet-600/20 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_40px_-12px_rgba(99,102,241,0.45)] backdrop-blur-md transition hover:from-indigo-600/35 hover:to-violet-600/28"

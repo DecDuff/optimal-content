@@ -22,44 +22,28 @@ export async function POST(_request: Request, context: Params) {
     .maybeSingle();
 
   if (!profile || profile.role !== "optimizer") {
-    return NextResponse.json({ error: "Only optimizers can claim" }, { status: 403 });
+    return NextResponse.json({ error: "Only optimizers can decline a direct request" }, { status: 403 });
   }
 
   const { data: existing } = await admin.from("tasks").select("*").eq("id", taskId).maybeSingle();
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const t = existing as TaskRow;
-  if (t.creator_id === user.id) {
-    return NextResponse.json({ error: "You cannot claim your own task" }, { status: 403 });
+  if (t.status !== "open") {
+    return NextResponse.json({ error: "Task is not open" }, { status: 409 });
   }
-  if (!t.stripe_charge_id) {
-    return NextResponse.json({ error: "Task is not funded yet" }, { status: 400 });
-  }
-
-  if (t.requested_optimizer_id && t.requested_optimizer_id !== user.id) {
-    return NextResponse.json(
-      { error: "This job was requested for another optimizer" },
-      { status: 403 }
-    );
-  }
-
-  if (t.requested_optimizer_id && t.expires_at) {
-    const deadline = new Date(t.expires_at).getTime();
-    if (Number.isFinite(deadline) && deadline < Date.now()) {
-      return NextResponse.json({ error: "This direct request has expired" }, { status: 410 });
-    }
+  if (!t.is_private || t.requested_optimizer_id !== user.id) {
+    return NextResponse.json({ error: "Not your direct request" }, { status: 403 });
   }
 
   const now = new Date().toISOString();
   const { data: updated, error } = await admin
     .from("tasks")
     .update({
-      status: "claimed",
-      optimizer_id: user.id,
-      claimed_at: now,
-      updated_at: now,
       is_private: false,
       requested_optimizer_id: null,
       expires_at: null,
+      updated_at: now,
     })
     .eq("id", taskId)
     .eq("status", "open")
@@ -68,7 +52,7 @@ export async function POST(_request: Request, context: Params) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!updated) {
-    return NextResponse.json({ error: "Task unavailable or already claimed" }, { status: 409 });
+    return NextResponse.json({ error: "Task unavailable" }, { status: 409 });
   }
 
   return NextResponse.json({ task: updated as TaskRow });

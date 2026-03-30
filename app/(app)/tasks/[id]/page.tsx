@@ -394,10 +394,28 @@ export default function TaskWorkspacePage() {
     ? optimizerPayoutCents(task.budget, platformFeePct)
     : task.budget;
   const funded = Boolean(task.stripe_charge_id);
+  const directForOtherOptimizer =
+    Boolean(task.is_private) &&
+    Boolean(task.requested_optimizer_id) &&
+    task.requested_optimizer_id !== uid;
+  const directExpired =
+    Boolean(task.requested_optimizer_id) &&
+    Boolean(task.expires_at) &&
+    Number.isFinite(new Date(task.expires_at as string).getTime()) &&
+    new Date(task.expires_at as string).getTime() < Date.now();
   const canClaim =
-    task.status === "open" && profile?.role === "optimizer" && !isCreator && funded;
+    task.status === "open" &&
+    profile?.role === "optimizer" &&
+    !isCreator &&
+    funded &&
+    !directForOtherOptimizer &&
+    !directExpired;
   const showClaimTeaser =
-    task.status === "open" && profile?.role === "optimizer" && !isCreator && !funded;
+    task.status === "open" &&
+    profile?.role === "optimizer" &&
+    !isCreator &&
+    !funded &&
+    !directForOtherOptimizer;
   const checkedCount = countChecked(checklist);
   const allChecklistDone = checkedCount === CHECKLIST_KEYS.length;
   const countdownActive =
@@ -486,6 +504,26 @@ export default function TaskWorkspacePage() {
               </p>
               <p className="mt-2 text-[12px] text-zinc-500">
                 Stripe checkout CTA is intentionally hidden on this page when the task is `open`.
+              </p>
+            </div>
+          ) : null}
+
+          {directForOtherOptimizer ? (
+            <div className="glass-panel border-zinc-600/40 p-4 sm:p-5 md:p-6">
+              <p className="text-sm text-zinc-400">
+                This is a direct request for another optimizer. You can&apos;t claim it from here.
+              </p>
+            </div>
+          ) : null}
+
+          {!directForOtherOptimizer &&
+          profile?.role === "optimizer" &&
+          !isCreator &&
+          task.status === "open" &&
+          directExpired ? (
+            <div className="glass-panel border-rose-500/30 p-4 sm:p-5 md:p-6">
+              <p className="text-sm text-rose-300/90">
+                This direct request has expired and can no longer be claimed.
               </p>
             </div>
           ) : null}
