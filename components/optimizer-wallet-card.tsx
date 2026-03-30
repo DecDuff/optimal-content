@@ -14,6 +14,8 @@ type Bal = {
   available_cents: number;
   pending_stripe_cents?: number;
   pending_payout_cents: number;
+  /** Sum of optimizer share for approved tasks with a transfer recorded (Supabase). */
+  approved_earnings_cents?: number;
   currency: string;
   error?: string;
 };
@@ -25,6 +27,22 @@ function fmt(cents: number) {
 }
 
 const SPRING: SpringOptions = { stiffness: 280, damping: 22, mass: 0.4 };
+
+async function fetchBalance(): Promise<Bal> {
+  const res = await fetch("/api/stripe/balance", { cache: "no-store" });
+  const data = (await res.json()) as Bal & { error?: string };
+  if (!res.ok) {
+    return {
+      available_cents: 0,
+      pending_stripe_cents: 0,
+      pending_payout_cents: 0,
+      approved_earnings_cents: 0,
+      currency: "usd",
+      error: data.error ?? "Wallet unavailable",
+    };
+  }
+  return data;
+}
 
 export function OptimizerWalletCard() {
   const ref = useRef<HTMLDivElement>(null);
@@ -40,24 +58,26 @@ export function OptimizerWalletCard() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const res = await fetch("/api/stripe/balance");
-      const data = (await res.json()) as Bal & { error?: string };
-      if (!cancelled) {
-        if (!res.ok) {
-          setBal({
-            available_cents: 0,
-            pending_stripe_cents: 0,
-            pending_payout_cents: 0,
-            currency: "usd",
-            error: data.error ?? "Wallet unavailable",
-          });
-        } else {
-          setBal(data);
-        }
-      }
+      const data = await fetchBalance();
+      if (!cancelled) setBal(data);
     })();
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => {
+      void fetchBalance().then(setBal);
+    };
+    const onVis = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, []);
 
@@ -83,6 +103,7 @@ export function OptimizerWalletCard() {
   const available = bal?.available_cents ?? 0;
   const pendingTotal =
     (bal?.pending_payout_cents ?? 0) + (bal?.pending_stripe_cents ?? 0);
+  const approvedDb = bal?.approved_earnings_cents ?? 0;
 
   return (
     <motion.div
@@ -122,6 +143,9 @@ export function OptimizerWalletCard() {
               <p className="mt-2 font-mono text-3xl font-bold tabular-nums tracking-tight text-white drop-shadow-[0_0_24px_rgba(255,255,255,0.12)]">
                 {fmt(available)}
               </p>
+              <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                Stripe Connect · refetches when you return to this tab.
+              </p>
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
@@ -131,7 +155,18 @@ export function OptimizerWalletCard() {
                 {fmt(pendingTotal)}
               </p>
               <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
-                Awaiting creator approvals and Stripe pending balances.
+                Submitted tasks (your share) plus Stripe pending balances.
+              </p>
+            </div>
+            <div className="sm:col-span-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                Approved earnings (database)
+              </p>
+              <p className="mt-2 font-mono text-xl font-semibold tabular-nums text-emerald-200/90">
+                {fmt(approvedDb)}
+              </p>
+              <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                Sum of your share on approved tasks with a recorded payout transfer.
               </p>
             </div>
           </div>

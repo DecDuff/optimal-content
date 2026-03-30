@@ -7,6 +7,7 @@ import { useProfilePrefs } from "@/app/context/profile-prefs-context";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
 import { ClaimCountdown } from "@/components/claim-countdown";
 import { TagCapsulePicker } from "@/components/tag-capsule-picker";
+import { optimizerPayoutCents } from "@/lib/optimizer-payout";
 import type { ProfileRow, TaskRow } from "@/types/database";
 
 type MeResponse = {
@@ -161,7 +162,9 @@ export default function ProfilePage() {
                     <Link href={`/tasks/${task.id}`} className="text-sm font-medium text-zinc-200 hover:text-[#2e5bff]">
                       {task.title}
                     </Link>
-                    <span className="font-mono text-sm tabular-nums text-white">{fmtMoney(task.budget)}</span>
+                    <span className="font-mono text-sm tabular-nums text-white">
+                      {fmtMoney(optimizerPayoutCents(task.budget))}
+                    </span>
                   </div>
                   {(task.status === "claimed" || task.status === "submitted") && task.claimed_at ? (
                     <div className="mt-3">

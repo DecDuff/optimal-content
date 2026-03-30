@@ -14,6 +14,7 @@ import {
   platformBadgeLabel,
   safeTaskTags,
 } from "@/lib/task-feed-meta";
+import { optimizerPayoutCents } from "@/lib/optimizer-payout";
 import type { FeedComplexityValue, FeedPlatformValue } from "@/lib/task-feed-meta";
 import type { TaskRow } from "@/types/database";
 
@@ -57,7 +58,7 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
       t = t.filter((row) => safeTaskTags(row.tags).includes(tagFilter));
     }
     if (sort === "budget") {
-      t.sort((a, b) => b.budget - a.budget);
+      t.sort((a, b) => optimizerPayoutCents(b.budget) - optimizerPayoutCents(a.budget));
     } else {
       t.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
@@ -307,9 +308,12 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
                   <p className="mt-2 line-clamp-2 text-xs text-slate-500">{t.description}</p>
                 </div>
                 <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
-                  <span className="font-mono text-xl font-semibold tabular-nums text-transparent bg-gradient-to-r from-cyan-300 to-emerald-300 bg-clip-text drop-shadow-[0_0_24px_rgba(52,211,153,0.25)]">
-                    {fmtMoney(t.budget)}
-                  </span>
+                  <div className="text-right">
+                    <span className="font-mono text-xl font-semibold tabular-nums text-transparent bg-gradient-to-r from-cyan-300 to-emerald-300 bg-clip-text drop-shadow-[0_0_24px_rgba(52,211,153,0.25)]">
+                      {fmtMoney(optimizerPayoutCents(t.budget))}
+                    </span>
+                    <p className="mt-0.5 text-[10px] text-slate-500">Your est. payout</p>
+                  </div>
                   {!funded ? (
                     <span className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-1.5 text-center text-[10px] font-medium text-amber-200/90 backdrop-blur-md">
                       Awaiting creator payment

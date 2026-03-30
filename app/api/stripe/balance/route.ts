@@ -27,6 +27,7 @@ export async function GET() {
   const accountId = optimizerStripeAccountId();
 
   const feePct = platformFeePercent();
+
   const { data: awaiting } = await admin
     .from("tasks")
     .select("budget")
@@ -35,6 +36,19 @@ export async function GET() {
 
   const pendingPayoutCents =
     awaiting?.reduce(
+      (sum, row) => sum + optimizerShareCents(row.budget as number, feePct),
+      0
+    ) ?? 0;
+
+  const { data: approvedRows } = await admin
+    .from("tasks")
+    .select("budget")
+    .eq("optimizer_id", user.id)
+    .eq("status", "approved")
+    .not("stripe_transfer_id", "is", null);
+
+  const approvedEarningsCents =
+    approvedRows?.reduce(
       (sum, row) => sum + optimizerShareCents(row.budget as number, feePct),
       0
     ) ?? 0;
@@ -50,24 +64,30 @@ export async function GET() {
     const availableUsd = sum(balance.available, "usd");
     const pendingStripeUsd = sum(balance.pending, "usd");
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       available_cents: availableUsd,
       pending_stripe_cents: pendingStripeUsd,
       pending_payout_cents: pendingPayoutCents,
+      approved_earnings_cents: approvedEarningsCents,
       currency: "usd",
       stripe_account_id: accountId,
     });
+    res.headers.set("Cache-Control", "no-store");
+    return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Balance error";
-    return NextResponse.json(
+    const res = NextResponse.json(
       {
         error: msg,
         available_cents: 0,
         pending_stripe_cents: 0,
         pending_payout_cents: pendingPayoutCents,
+        approved_earnings_cents: approvedEarningsCents,
         stripe_account_id: accountId,
       },
       { status: 200 }
     );
+    res.headers.set("Cache-Control", "no-store");
+    return res;
   }
 }

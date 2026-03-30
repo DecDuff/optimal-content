@@ -10,6 +10,7 @@ import { DashboardPostOpener } from "@/components/dashboard-post-opener";
 import { OptimizerWalletCard } from "@/components/optimizer-wallet-card";
 import { usePostJobModal } from "@/contexts/post-job-modal-context";
 import { useSessionProfile } from "@/hooks/use-session-profile";
+import { optimizerPayoutCents } from "@/lib/optimizer-payout";
 import type { TaskRow, TaskStatus } from "@/types/database";
 
 export const dynamic = 'force-dynamic';
@@ -214,8 +215,9 @@ function DashboardContent() {
             }}
           >
             {tasks.map((t) => {
-              // 👇 UPDATED THIS LINE HERE
               const awaitingPay = t.status === "awaiting_checkout";
+              const listCents =
+                profile?.role === "optimizer" ? optimizerPayoutCents(t.budget) : t.budget;
               return (
                 <motion.li
                   key={t.id}
@@ -239,7 +241,16 @@ function DashboardContent() {
                       >
                         {awaitingPay ? "awaiting payment" : t.status.replace("_", " ")}
                       </span>
-                      <span className="ml-2 font-mono text-slate-400">{fmtMoney(t.budget)}</span>
+                      <span
+                        className="ml-2 font-mono text-slate-400"
+                        title={
+                          profile?.role === "optimizer"
+                            ? "Estimated payout after platform fee"
+                            : "Job budget (escrow)"
+                        }
+                      >
+                        {fmtMoney(listCents)}
+                      </span>
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">

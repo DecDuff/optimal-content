@@ -11,6 +11,7 @@ import { ClaimCountdown } from "@/components/claim-countdown";
 import { RetentionChecklist } from "@/components/retention-checklist";
 import { useSessionProfile } from "@/hooks/use-session-profile";
 import { isValidHttpsUrl } from "@/lib/validation";
+import { optimizerPayoutCents, readPlatformFeePercent } from "@/lib/optimizer-payout";
 import type { ChecklistState, TaskRow, TaskStatus } from "@/types/database";
 
 function fmtMoney(cents: number) {
@@ -295,6 +296,33 @@ export default function TaskWorkspacePage() {
     }
   }
 
+  async function resubmitWork() {
+    const url = deliverableUrl.trim();
+    if (!isValidHttpsUrl(url)) {
+      toast.error("Enter a valid https URL for your updated deliverable.");
+      return;
+    }
+    setBusy("resubmit");
+    try {
+      const res = await fetch(`/api/tasks/${id}/resubmit`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submission_url: url }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        toast.error(data.error ?? "Could not resubmit");
+        return;
+      }
+      toast.success("Resubmitted — the creator can review again.");
+      setTask(data.task as TaskRow);
+      await refreshTask();
+      router.refresh();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function approve() {
     setBusy("approve");
     try {
@@ -338,6 +366,12 @@ export default function TaskWorkspacePage() {
   const isCreator = uid === task.creator_id;
   const isOptimizerUser = uid === task.optimizer_id;
   const isAssignedOptimizer = isOptimizerUser && task.status === "claimed";
+  const platformFeePct = readPlatformFeePercent();
+  const optimizerSharePct = 100 - platformFeePct;
+  const showOptimizerNetPayout = profile?.role === "optimizer" && !isCreator;
+  const headerBudgetCents = showOptimizerNetPayout
+    ? optimizerPayoutCents(task.budget, platformFeePct)
+    : task.budget;
   const funded = Boolean(task.stripe_charge_id);
   const canClaim =
     task.status === "open" && profile?.role === "optimizer" && !isCreator && funded;
@@ -386,10 +420,17 @@ export default function TaskWorkspacePage() {
           </a>
         </div>
         <div className="glass-panel w-full max-w-xs shrink-0 px-6 py-5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Budget</p>
-          <p className="mt-1 font-mono text-3xl font-semibold tabular-nums text-[#2e5bff] drop-shadow-[0_0_24px_rgba(46,91,255,0.4)]">
-            {fmtMoney(task.budget)}
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            {showOptimizerNetPayout ? "Your payout (est.)" : "Budget"}
           </p>
+          <p className="mt-1 font-mono text-3xl font-semibold tabular-nums text-[#2e5bff] drop-shadow-[0_0_24px_rgba(46,91,255,0.4)]">
+            {fmtMoney(headerBudgetCents)}
+          </p>
+          {showOptimizerNetPayout ? (
+            <p className="mt-2 text-[11px] leading-snug text-zinc-500">
+              {optimizerSharePct}% of job budget after the {platformFeePct}% platform fee.
+            </p>
+          ) : null}
         </div>
       </motion.header>
 
@@ -508,6 +549,30 @@ export default function TaskWorkspacePage() {
                   <span className="font-medium text-zinc-400">Creator note: </span>
                   {task.appeal_reason}
                 </p>
+              ) : null}
+              {isOptimizerUser && (task.status === "appealed" || task.status === "disputed") ? (
+                <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-4">
+                  <div>
+                    <label className="text-xs font-medium text-zinc-400">Updated deliverable URL</label>
+                    <input
+                      type="url"
+                      value={deliverableUrl}
+                      onChange={(e) => setDeliverableUrl(e.target.value)}
+                      placeholder="https://…"
+                      className="mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950/50 px-4 py-2.5 text-sm text-zinc-200 outline-none focus:border-cyan-500/40"
+                    />
+                  </div>
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.98 }}
+                    disabled={busy !== null}
+                    onClick={resubmitWork}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-600/85 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {busy === "resubmit" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {busy === "resubmit" ? "Resubmitting…" : "Resubmit Work"}
+                  </motion.button>
+                </div>
               ) : null}
             </div>
           ) : null}
