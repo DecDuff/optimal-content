@@ -61,7 +61,7 @@ export async function POST(request: Request, context: Params) {
     const { data: updated, error: updateErr } = await admin
       .from("tasks")
       .update({
-        status: "disputed",
+        status: "appealed",
         appeal_reason: reason,
         updated_at: now,
       })

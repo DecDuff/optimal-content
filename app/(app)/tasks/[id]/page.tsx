@@ -284,10 +284,11 @@ export default function TaskWorkspacePage() {
         toast.error(data.error ?? "Appeal failed");
         return;
       }
-      toast.success("Appeal submitted. The task is now disputed.");
+      toast.success("Appeal recorded — status is now appealed.");
       setTask(data.task as TaskRow);
       setAppealOpen(false);
       setAppealReason("");
+      await refreshTask();
       router.refresh();
     } finally {
       setBusyAppeal(false);
@@ -495,9 +496,13 @@ export default function TaskWorkspacePage() {
             <p className="text-sm text-zinc-500">Approved — payout recorded for this task.</p>
           ) : null}
 
-          {task.status === "disputed" ? (
+          {task.status === "disputed" || task.status === "appealed" ? (
             <div className="glass-panel border-amber-500/20 p-5">
-              <p className="text-sm text-amber-200/90">This task is marked disputed.</p>
+              <p className="text-sm text-amber-200/90">
+                {task.status === "appealed"
+                  ? "This task is under appeal."
+                  : "This task is marked disputed."}
+              </p>
               {task.appeal_reason ? (
                 <p className="mt-3 text-sm leading-relaxed text-zinc-300">
                   <span className="font-medium text-zinc-400">Creator note: </span>
@@ -585,7 +590,8 @@ export default function TaskWorkspacePage() {
               Appeal this submission
             </h2>
             <p className="mt-1 text-sm text-slate-400">
-              Explain what needs to change. The task will move to disputed for follow-up.
+              Explain what needs to change. The task will be marked <span className="text-slate-300">appealed</span>{" "}
+              in Supabase and your note will be saved.
             </p>
             <label className="mt-5 block text-xs font-medium text-slate-400">Reason for appeal</label>
             <textarea

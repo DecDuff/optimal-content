@@ -4,9 +4,17 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Loader2, Search, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Loader2, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { AppBreadcrumb } from "@/components/app-breadcrumb";
+import {
+  FEED_COMPLEXITY_VALUES,
+  FEED_PLATFORM_VALUES,
+  complexityBadgeClass,
+  platformBadgeLabel,
+  safeTaskTags,
+} from "@/lib/task-feed-meta";
+import type { FeedComplexityValue, FeedPlatformValue } from "@/lib/task-feed-meta";
 import type { TaskRow } from "@/types/database";
 
 function fmtMoney(cents: number) {
@@ -23,8 +31,13 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
   const [tasks, setTasks] = useState<TaskRow[]>(initialTasks);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"new" | "budget">("new");
+  const [filterPlatform, setFilterPlatform] = useState<"" | FeedPlatformValue>("");
+  const [filterComplexity, setFilterComplexity] = useState<"" | FeedComplexityValue>("");
+  const [tagFilter, setTagFilter] = useState("");
   const [claiming, setClaiming] = useState<string | null>(null);
   const [isRefreshing, startTransition] = useTransition();
+
+  const hasExtraFilters = Boolean(filterPlatform || filterComplexity || tagFilter);
 
   const filtered = useMemo(() => {
     let t = [...tasks];
@@ -34,13 +47,28 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
         (x) => x.title.toLowerCase().includes(q) || x.description.toLowerCase().includes(q)
       );
     }
+    if (filterPlatform) {
+      t = t.filter((x) => (x.target_platform ?? "").trim() === filterPlatform);
+    }
+    if (filterComplexity) {
+      t = t.filter((x) => (x.complexity_level ?? "").trim().toLowerCase() === filterComplexity);
+    }
+    if (tagFilter) {
+      t = t.filter((row) => safeTaskTags(row.tags).includes(tagFilter));
+    }
     if (sort === "budget") {
       t.sort((a, b) => b.budget - a.budget);
     } else {
       t.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
     return t;
-  }, [tasks, query, sort]);
+  }, [tasks, query, sort, filterPlatform, filterComplexity, tagFilter]);
+
+  function clearFilters() {
+    setFilterPlatform("");
+    setFilterComplexity("");
+    setTagFilter("");
+  }
 
   async function claim(id: string) {
     setClaiming(id);
@@ -89,9 +117,9 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
           Job feed
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
-          Funded, open roles from other creators. Your own jobs never appear here. Use{" "}
-          <span className="text-slate-300">Newest</span> or{" "}
-          <span className="text-slate-300">Highest budget</span> to prioritize.
+          Funded, open roles from other creators. Filter by platform, complexity, or tag. Click a tag on a card
+          to narrow the list. Use <span className="text-slate-300">Newest</span> or{" "}
+          <span className="text-slate-300">Highest budget</span> to sort.
         </p>
       </motion.div>
 
@@ -101,28 +129,94 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
         </div>
       ) : null}
 
-      <div className="glass-panel mt-8 flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" strokeWidth={1.5} />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search titles & briefs…"
-            className="w-full rounded-xl border border-white/10 bg-slate-950/40 py-2.5 pl-10 pr-3 text-sm text-slate-200 placeholder:text-slate-600 outline-none backdrop-blur-md focus:border-violet-500/35"
-          />
+      <div className="glass-panel mt-8 flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" strokeWidth={1.5} />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search titles & briefs…"
+              className="w-full rounded-xl border border-white/10 bg-slate-950/40 py-2.5 pl-10 pr-3 text-sm text-slate-200 placeholder:text-slate-600 outline-none backdrop-blur-md focus:border-violet-500/35"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-slate-500" strokeWidth={1.5} />
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as "new" | "budget")}
+              className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2.5 text-xs font-medium text-slate-300 outline-none backdrop-blur-md focus:border-violet-500/35"
+            >
+              <option value="new">Newest first</option>
+              <option value="budget">Highest budget</option>
+            </select>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <SlidersHorizontal className="h-4 w-4 text-slate-500" strokeWidth={1.5} />
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as "new" | "budget")}
-            className="rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2.5 text-xs font-medium text-slate-300 outline-none backdrop-blur-md focus:border-violet-500/35"
-          >
-            <option value="new">Newest first</option>
-            <option value="budget">Highest budget</option>
-          </select>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+          <div className="min-w-[180px] flex-1 sm:max-w-[220px]">
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              Platform
+            </label>
+            <select
+              value={filterPlatform}
+              onChange={(e) => setFilterPlatform(e.target.value as "" | FeedPlatformValue)}
+              className="w-full rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2.5 text-xs font-medium text-slate-300 outline-none backdrop-blur-md focus:border-cyan-500/35"
+            >
+              <option value="">All platforms</option>
+              {FEED_PLATFORM_VALUES.map((v) => (
+                <option key={v} value={v}>
+                  {platformBadgeLabel(v) ?? v}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[180px] flex-1 sm:max-w-[220px]">
+            <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+              Complexity
+            </label>
+            <select
+              value={filterComplexity}
+              onChange={(e) => setFilterComplexity(e.target.value as "" | FeedComplexityValue)}
+              className="w-full rounded-xl border border-white/10 bg-slate-950/40 px-3 py-2.5 text-xs font-medium text-slate-300 outline-none backdrop-blur-md focus:border-violet-500/35"
+            >
+              <option value="">All levels</option>
+              {FEED_COMPLEXITY_VALUES.map((v) => (
+                <option key={v} value={v}>
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {query.trim() || hasExtraFilters ? (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                clearFilters();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-400 backdrop-blur-sm transition hover:border-white/15 hover:text-slate-200"
+            >
+              <X className="h-3.5 w-3.5" strokeWidth={2} />
+              Reset search & filters
+            </button>
+          ) : null}
         </div>
+
+        {tagFilter ? (
+          <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">Active tag</span>
+            <button
+              type="button"
+              onClick={() => setTagFilter("")}
+              className="inline-flex items-center gap-1 rounded-full border border-violet-500/40 bg-violet-500/15 px-3 py-1 text-[11px] font-medium text-violet-100 backdrop-blur-md transition hover:bg-violet-500/25"
+            >
+              {tagFilter}
+              <X className="h-3 w-3 opacity-80" strokeWidth={2} />
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {isRefreshing ? (
@@ -137,7 +231,9 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
         >
           {tasks.length === 0
             ? "No funded open jobs from other creators. Post from a creator account, complete Stripe checkout (or use Dev simulate payment), then view this feed from a separate optimizer account."
-            : "No jobs match your search. Try different keywords."}
+            : query.trim() || hasExtraFilters
+              ? "No jobs match your search or filters. Try clearing filters or different keywords."
+              : "No jobs match your search. Try different keywords."}
         </motion.p>
       ) : (
         <motion.ul
@@ -149,47 +245,88 @@ export default function FeedClient({ initialTasks, fetchError }: Props) {
             show: { transition: { staggerChildren: 0.05 } },
           }}
         >
-          {filtered.map((t) => (
-            <motion.li
-              key={t.id}
-              layout
-              variants={{
-                hidden: { opacity: 0, y: 18 },
-                show: { opacity: 1, y: 0 },
-              }}
-              whileHover={{ scale: 1.006 }}
-              transition={{ type: "spring", stiffness: 400, damping: 28 }}
-              className="glass-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="min-w-0">
-                <Link
-                  href={`/tasks/${t.id}`}
-                  className="text-sm font-medium text-white transition hover:text-violet-300"
-                >
-                  {t.title}
-                </Link>
-                <p className="mt-1 line-clamp-2 text-xs text-slate-500">{t.description}</p>
-              </div>
-              <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
-                <span className="font-mono text-xl font-semibold tabular-nums text-transparent bg-gradient-to-r from-cyan-300 to-emerald-300 bg-clip-text drop-shadow-[0_0_24px_rgba(52,211,153,0.25)]">
-                  {fmtMoney(t.budget)}
-                </span>
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={claiming === t.id}
-                  onClick={() => claim(t.id)}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-indigo-500/50 bg-gradient-to-r from-indigo-600/90 to-violet-600/90 px-5 py-2.5 text-xs font-semibold text-white shadow-[0_0_32px_-8px_rgba(99,102,241,0.5)] backdrop-blur-sm disabled:opacity-60"
-                >
-                  {claiming === t.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+          {filtered.map((t) => {
+            const plat = platformBadgeLabel(t.target_platform);
+            const cx = complexityBadgeClass(t.complexity_level);
+            const tags = safeTaskTags(t.tags);
+            const showMetaRow = Boolean(plat || cx || tags.length > 0);
+
+            return (
+              <motion.li
+                key={t.id}
+                layout
+                variants={{
+                  hidden: { opacity: 0, y: 18 },
+                  show: { opacity: 1, y: 0 },
+                }}
+                whileHover={{ scale: 1.006 }}
+                transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                className="glass-panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0 flex-1">
+                  <Link
+                    href={`/tasks/${t.id}`}
+                    className="text-sm font-medium text-white transition hover:text-violet-300"
+                  >
+                    {t.title}
+                  </Link>
+                  {showMetaRow ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {plat ? (
+                        <span className="inline-flex rounded-full border border-cyan-500/35 bg-cyan-500/10 px-2.5 py-0.5 text-[10px] font-medium text-cyan-100/95 backdrop-blur-md">
+                          {plat}
+                        </span>
+                      ) : null}
+                      {cx ? (
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-medium backdrop-blur-md ${cx.pill}`}
+                        >
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${cx.dot}`} aria-hidden />
+                          {cx.label}
+                        </span>
+                      ) : null}
+                      {tags.map((tag) => {
+                        const active = tagFilter === tag;
+                        return (
+                          <button
+                            key={`${t.id}-${tag}`}
+                            type="button"
+                            onClick={() => setTagFilter(active ? "" : tag)}
+                            className={`rounded-full border px-2.5 py-0.5 text-[10px] font-medium backdrop-blur-md transition ${
+                              active
+                                ? "border-violet-400/60 bg-violet-500/20 text-violet-100 ring-1 ring-violet-500/40"
+                                : "border-white/10 bg-white/[0.04] text-slate-300 hover:border-violet-500/30 hover:text-white"
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
+                    </div>
                   ) : null}
-                  {claiming === t.id ? "Claiming…" : "Claim job"}
-                </motion.button>
-              </div>
-            </motion.li>
-          ))}
+                  <p className="mt-2 line-clamp-2 text-xs text-slate-500">{t.description}</p>
+                </div>
+                <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
+                  <span className="font-mono text-xl font-semibold tabular-nums text-transparent bg-gradient-to-r from-cyan-300 to-emerald-300 bg-clip-text drop-shadow-[0_0_24px_rgba(52,211,153,0.25)]">
+                    {fmtMoney(t.budget)}
+                  </span>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={claiming === t.id}
+                    onClick={() => claim(t.id)}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-indigo-500/50 bg-gradient-to-r from-indigo-600/90 to-violet-600/90 px-5 py-2.5 text-xs font-semibold text-white shadow-[0_0_32px_-8px_rgba(99,102,241,0.5)] backdrop-blur-sm disabled:opacity-60"
+                  >
+                    {claiming === t.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+                    ) : null}
+                    {claiming === t.id ? "Claiming…" : "Claim job"}
+                  </motion.button>
+                </div>
+              </motion.li>
+            );
+          })}
         </motion.ul>
       )}
     </div>

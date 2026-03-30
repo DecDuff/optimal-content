@@ -24,7 +24,7 @@ create table if not exists public.tasks (
   video_url text not null,
   budget integer not null check (budget > 0),
   status text not null default 'open'
-    check (status in ('open', 'claimed', 'submitted', 'approved', 'disputed')),
+    check (status in ('open', 'claimed', 'submitted', 'approved', 'disputed', 'appealed')),
   claimed_at timestamptz,
   stripe_checkout_session_id text,
   stripe_payment_intent_id text,
